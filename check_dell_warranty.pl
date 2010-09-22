@@ -25,10 +25,10 @@ use warnings;
 #use WWW::Mechanize;
 use HTML::TableExtract;
 
-
 # we will save the 'days left' field in this array. There usually are
 # two rows with this field on the $url
 my @days_left;
+
 #my $mech = WWW::Mechanize->new( autocheck => 1 );
 
 #my $url =
@@ -52,17 +52,15 @@ If the headers change, just change them here.
 my @headers = qw(Description Provider Warranty Start End Days) ;
 my $te = HTML::TableExtract->new( headers => \@headers );
 
-# parse the $url 
+#parse the $url 
 $te->parse_file( $url) ;
-
 
 # get the rows
 for my $ts ($te->tables) {
 
     for my $row_ref ($ts->rows) {
-    #print "Warranty days left: $row->[5]\n";
+        # store the days left value in global @days_left
         push @days_left, $row_ref->[5];
-
     }
 }
 
@@ -70,12 +68,19 @@ print join( ',', @days_left ), "\n" ;
 
 =pod
 How to debug HTML::TableExtract
-Use the following $te object to see how many tables there are and where
+Replace the $te object and for loop with this to get *all tables* and
+their location in the $url:
 
 my $te = HTML::TableExtract->new();
-print "Table found at ", join(',', $ts->coords), ":\n";
+$te->parse_file($url);
+for my $ts ($te->tables) {
+    print "Table (", join(',', $ts->coords), "):\n";
+    for my $row_ref ($ts->rows) {
+        print join(',', @$row_ref), "\n";
+    }
+}
 
-You get something like this:
+You get all the tables in $url and the one we want is something like this:
 
 Table found at 6,0:
 Description,Provider,Warranty Extension Notice *,Start Date,End Date,Days Left
