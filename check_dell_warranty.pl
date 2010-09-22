@@ -25,6 +25,10 @@ use warnings;
 #use WWW::Mechanize;
 use HTML::TableExtract;
 
+
+# we will save the 'days left' field in this array. There usually are
+# two rows with this field on the $url
+my @days_left;
 #my $mech = WWW::Mechanize->new( autocheck => 1 );
 
 #my $url =
@@ -51,9 +55,6 @@ my $te = HTML::TableExtract->new( headers => \@headers );
 # parse the $url 
 $te->parse_file( $url) ;
 
-# we will save the 'days left' field in this array. There usually are
-# two rows with this field on the $url
-my @days_left;
 
 # get the rows
 for my $ts ($te->tables) {
