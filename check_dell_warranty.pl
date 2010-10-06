@@ -30,9 +30,10 @@ my $file_is_text = undef;
 my $file_is_binary= undef;
 my $debug = 0;
 my $version = "0.01";
-my $host = '';
-my $tag = '';
+my $host = 0;
+my $tag = 0;
 
+Getopt::Long::Configure('no_ignore_case');
 GetOptions(
     'H|host=s'      =>  \$host,
     't|tag=s'       =>  \$tag,
@@ -41,8 +42,9 @@ GetOptions(
     'V|version'     =>  \$version,
 ) or help();
 
-pod2usage(-verbose=>0, -noperldoc => 1,) if help();
-pod2usage(-verbose=>0, -noperldoc => 1,) unless $host and $tag;
+#pod2usage(-verbose=>0, -noperldoc => 1,) if help();
+#pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
+pod2usage(0) unless $tag;
 
 # we will save the 'days left' field in this array. There usually are
 # two rows with this field on the $url
@@ -66,7 +68,10 @@ my $mech = WWW::Mechanize->new( autocheck => 1 );
 $mech->agent('check_dell_warranty/0.01; nagios plugin to monitor the number of days left before the warranty expires');
 
 my $url =
-"http://support.dell.com/support/topics/global.aspx/support/my_systems_info/details?c=us&l=en&s=gen&ServiceTag=GH";
+"http://support.dell.com/support/topics/global.aspx/support/my_systems_info/details?c=us&l=en&s=gen&ServiceTag="
+. $tag;
+
+dbg("site is $url");
 
 # dump the page to the temporary file $content
 dbg("dump the site to the temporary file $content");
@@ -86,32 +91,25 @@ _is_file_text_or_bin($content);
 if ( defined $file_is_binary ) {
     dbg( "Yes, we need to gunzip!");
     _extract_file($content);
-    _days_warranty_left();
-    get_days_left(@days_left);
-    _is_days_left_defined($days_left);
-    print "tag 3GHKN4J has $days_left days of warranty left\n";
-
+    _days_warranty_left($content);
+    _get_days_left(@days_left);
 }
 elsif ( defined $file_is_text ) {
     dbg( "no compression found, proceeding with the rest");
     _days_warranty_left();
-    get_days_left(@days_left);
+    _get_days_left(@days_left);
     print "tag 3GHKN4J has $days_left days of warranty left\n";
 }
 
-=pod
-
-get the table with headers: Description, Provider, Warranty, Start,
-End, Days. These are a list of regular expressions per header, so the
-first header can be 'Description of the Warranty' but you shorten it
-to 'Description'. Every header corresponds with a column in the table. I
-declare an array @headers in order to make the $te object more easily
-readable, you do not nead to predeclare it, you could use an anonymous
-array reference like :
-headers => [ qw(Description Provider Warranty Start End Days) ];
-If the headers change, just change them here.
-
-=cut
+#get the table with headers: Description, Provider, Warranty, Start,
+#End, Days. These are a list of regular expressions per header, so the
+#first header can be 'Description of the Warranty' but you shorten it
+#to 'Description'. Every header corresponds with a column in the table. I
+#declare an array @headers in order to make the $te object more easily
+#readable, you do not nead to predeclare it, you could use an anonymous
+#array reference like :
+#headers => [ qw(Description Provider Warranty Start End Days) ];
+#If the headers change, just change them here.
 
 #===  FUNCTION  ================================================================
 #         NAME:  _days_warranty_left
@@ -125,6 +123,7 @@ If the headers change, just change them here.
 #     SEE ALSO:  pod file above
 #===============================================================================
 sub _days_warranty_left {
+    my ( $content ) = @_;
     use HTML::TableExtract;
     my @headers = qw(Description Provider Warranty Start End Days) ;
     my $te = HTML::TableExtract->new( headers => \@headers );
@@ -134,16 +133,19 @@ sub _days_warranty_left {
     $te->parse_file( $content) ;
 
     # get the rows
+    sleep 10;
     dbg("get rows in the html tables");
-    for my $ts ($te->tables) {
+    for my $ts($te->tables) {
 
         for my $row_ref ($ts->rows) {
+
             # store the days left value in global @days_left
             dbg("save the value in the days left cell in \@days_left");
             push @days_left, $row_ref->[5];
-        }
-    }
+        };
+    };
 
+    dbg("@days_left");
     return @days_left;
 }	# ----------  end of subroutine days_warranty_left  ----------
 
@@ -160,7 +162,7 @@ sub _days_warranty_left {
 #     SEE ALSO:  n/a
 #===============================================================================
 
-sub get_days_left {
+sub _get_days_left {
     if ( scalar(@days_left) == 2 ) {
         if ($_[1] == $_[0]) {
            $days_left = $_[1];
@@ -170,6 +172,8 @@ sub get_days_left {
     }
     else {
         dbg("Something wet wrong while comparing \@days_left");
+        dbg(scalar(@days_left));
+        dbg(@days_left);
         return "UNKONWN";
     }
 }
@@ -219,17 +223,33 @@ sub _is_file_text_or_bin {
 #  DESCRIPTION:  if the file is compressed, then we rename it with the
 #                extension .gz. Otherwise gunzip complains
 #       THROWS:  no exceptions
-#     COMMENTS:  none
+#     COMMENTS:  once the gzipped file is extrated, we need to rename it
+#                to *.html or HTML::Extract cannot understand it
 #     SEE ALSO:  n/a
 #===============================================================================
 sub _extract_file {
     my	( $compressed_file )	= @_;
     use File::Copy;
-    dbg("rename $content to $content.gz");
-    move($content,"$content.gz") or
-        die "couldn't move $content to $content.gz: $!";
-    dbg("extract $content.gz");
-    system("gunzip $content.gz");
+    my $gzippedfile = "$content\.gz";
+    my $htmlfile = "$content\.html";
+
+    dbg("rename $content to $gzippedfile");
+    move($content,$gzippedfile) or
+        die "couldn't move $content to $gzippedfile: $!";
+
+    dbg("extract $gzippedfile");
+    if ( -e "$gzippedfile" ) {
+        system("/bin/gunzip $gzippedfile");
+
+        dbg("rename $content to $htmlfile");
+        move($content,$htmlfile) or die
+            "could not move $content to $htmlfile: $!\n";
+        
+        $content = $htmlfile;
+        }
+    if (-B $content) {
+        dbg("$content is binary, HTML::Extract cannot parse it");
+    }
 }	# ----------  end of subroutine _extract_file  ----------
 
 sub dbg {
