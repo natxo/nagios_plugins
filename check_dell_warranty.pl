@@ -29,22 +29,34 @@ use Pod::Usage;
 my $file_is_text = undef;
 my $file_is_binary= undef;
 my $debug = 0;
-my $version = "0.01";
+my $help = 0;
 my $host = 0;
 my $tag = 0;
+my $version = undef ; # version will be defined beneath
 
-Getopt::Long::Configure('no_ignore_case');
+Getopt::Long::Configure("no_ignore_case", "bundling");
 GetOptions(
     'H|host=s'      =>  \$host,
     't|tag=s'       =>  \$tag,
-    'h|help'        =>  sub { help(); },
+    'h|help|?'      =>  \$help,
     'v|verbose'     =>  \$debug,
     'V|version'     =>  \$version,
-) or help();
+);
 
+if ( $version ) {
+    my $version = "0.01";
+    print "$version\n";
+    exit 1;
+    }
+
+pod2usage(1) if $help;
 #pod2usage(-verbose=>0, -noperldoc => 1,) if help();
 #pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
-pod2usage(0) unless $tag;
+pod2usage( -verbose => 1, -noperldoc => 1, ) unless $tag;
+
+# we kan get the serial number/service tag remotely from snmp:
+# snmpwalk host -c public -v 1 1.3.6.1.4.1.674.10892.1.300.10.1.11.1
+# returns a string: NMPv2-SMI::enterprises.674.10892.1.300.10.1.11.1 = STRING: "H980L4J"
 
 # we will save the 'days left' field in this array. There usually are
 # two rows with this field on the $url
@@ -256,24 +268,13 @@ sub dbg {
     print STDERR "--", shift, "\n" if $debug;
 }	# ----------  end of subroutine dbg  ----------
 
-sub help {
-    my $heredoc = <<EOF;
-        -H, --host
-        -t, --tag
-        -V, --verbose
-        -v, --version
-
-EOF
-    print $heredoc;
-}
-
 =head1 NAME
 
 check_dell_warranty
 
 =head1 SYNOPSIS
 
-check_dell_warranty -H [hostname] -t [service tag number]
+check_dell_warranty -H [hostname] -t [service tag number] -[vVh]
 
 =head1 DESCRIPTION
 
@@ -285,13 +286,15 @@ available from your Perl distributor repositories or CPAN.
 
 =head1 ARGUMENTS
 
---host  Hostname/ip address of server to monitor
+-h | --host     Hostname/ip address of server to monitor (required)
 
---tag   Dell service tag number of server to monitor
+-t | --tag      Dell service tag number of server to monitor
 
---version
+-V | --version  prints the version of this program
 
---help
+-v | --verbose  prints extra debugging information
+
+-h | --help | -?  print this help text
 
 =head1 AUTHOR
 
