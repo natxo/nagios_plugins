@@ -45,14 +45,14 @@ GetOptions(
 
 if ( $version ) {
     my $version = "0.01";
-    print "$version\n";
+    print "Version: $version\n";
     exit 1;
     }
 
 pod2usage(1) if $help;
 #pod2usage(-verbose=>0, -noperldoc => 1,) if help();
 #pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
-pod2usage( -verbose => 1, -noperldoc => 1, ) unless $tag;
+pod2usage( -verbose => 1, -noperldoc => 1, ) unless $tag or $host;
 
 # we kan get the serial number/service tag remotely from snmp:
 # snmpwalk host -c public -v 1 1.3.6.1.4.1.674.10892.1.300.10.1.11.1
