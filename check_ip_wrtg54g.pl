@@ -4,7 +4,6 @@
 use strict;
 use warnings;
 use LWP::UserAgent;
-use Data::Dumper;
 use Getopt::Long;
 use HTML::TableExtract;
 
@@ -19,8 +18,9 @@ my $result=GetOptions(
                       "realm=s" => \$realm,
                       "password=s" => \$password,
                       "ipaddress=s" => \$addr,
-                      "port=i" => \$port
+                      "port=i" => \$port,
                    );
+
 my $ua=LWP::UserAgent -> new();
 
 barf_and_complain()
@@ -29,6 +29,7 @@ barf_and_complain()
 
             );
 my $host_settings=sprintf("%s:%d",$host,$port);
+
 my $url = sprintf("http://%s:%d/Status_Router.asp",$host,$port);
 
 $ua -> credentials ($host_settings,$realm,"",$password);
