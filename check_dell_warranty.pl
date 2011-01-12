@@ -26,44 +26,67 @@ use File::Temp;
 use Getopt::Long;
 use Pod::Usage;
 
+my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 my $file_is_text = undef;
 my $file_is_binary= undef;
 my $debug = 0;
 my $help = 0;
 my $host = 0;
-my $tag = 0;
-my $version = undef ; # version will be defined beneath
+my $tag = undef;
+my $version = "0.02" ;
+my $revision = undef;
+my $warning = 10;
+my $critical = 20;
 
 Getopt::Long::Configure("no_ignore_case", "bundling");
 GetOptions(
-    'H|host=s'      =>  \$host,
-    't|tag=s'       =>  \$tag,
-    'h|help|?'      =>  \$help,
-    'v|verbose'     =>  \$debug,
-    'V|version'     =>  \$version,
+    'H|hostname=s'      =>  \$host,
+    't|tag=s'           =>  \$tag,
+    'h|help|?'          =>  \$help,
+    'v|verbose'         =>  \$debug,
+    'V|version'         =>  \$revision,
+    'w|warning=i'       =>  \$warning,
+    'c|critical=i'      =>  \$critical,
 );
 
-if ( $version ) {
-    my $version = "0.01";
-    print "Version: $version\n";
-    exit 1;
-    }
+# get version info if requested and exit
+if ( $revision ) {
+     print "Version: $version\n";
+     exit $ERRORS{OK};
+     }
 
 pod2usage(1) if $help;
 #pod2usage(-verbose=>0, -noperldoc => 1,) if help();
 #pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
-pod2usage( -verbose => 1, -noperldoc => 1, ) unless $tag or $host;
+pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host;
 
+# if no tag is given from the cli and the check is run against localhost
+# try getting it from dmidecode
+if ( !defined $tag and $host eq "localhost" ) {
+    dbg("Getting tag from dmidecode");
+    _get_delltag_dmidecode();
+    dbg("tag is $tag");
+}
+
+# :TODO:01/11/2011 11:03:58 PM:: 
+# if $host is remote, then we need to check it from snmp;
 # we kan get the serial number/service tag remotely from snmp:
 # snmpwalk host -c public -v 1 1.3.6.1.4.1.674.10892.1.300.10.1.11.1
 # returns a string: NMPv2-SMI::enterprises.674.10892.1.300.10.1.11.1 = STRING: "H980L4J"
+
+# If we cannot get a $tag either from the cli options or dmidecode or
+# snmp, then we cannot go on. End script then.
+unless ( defined $tag ) {
+    print "We could not find an appropriate dell tag string. Without one we cannot use this plugin.\n";
+    exit $ERRORS{CRITICAL};
+}
 
 # we will save the 'days left' field in this array. There usually are
 # two rows with this field on the $url
 my @days_left;
 
 # this is the final number of days left we are interested in. The
-# @days_left array should have twice this number
+# @days_left array should have this number twice
 my $days_left = undef;
 
 # create a temporary file where we will save the Dell website with the
@@ -72,12 +95,11 @@ dbg("create a temporary file to store the Dell site with the warranty
     info");
 my $content = File::Temp->new();
 
-
 # define the mechanize object
 my $mech = WWW::Mechanize->new( autocheck => 1 );
 
 # set the user agent that will show in dell's logs
-$mech->agent('check_dell_warranty/0.01; nagios plugin to monitor the number of days left before the warranty expires');
+$mech->agent("check_dell_warranty/$version; nagios plugin to monitor number of days left before warranty expires");
 
 my $url =
 "http://support.dell.com/support/topics/global.aspx/support/my_systems_info/details?c=us&l=en&s=gen&ServiceTag="
@@ -105,23 +127,24 @@ if ( defined $file_is_binary ) {
     _extract_file($content);
     _days_warranty_left($content);
     _get_days_left(@days_left);
+    _get_crit_warning($days_left);
 }
 elsif ( defined $file_is_text ) {
     dbg( "no compression found, proceeding with the rest");
     _days_warranty_left();
     _get_days_left(@days_left);
-    print "tag 3GHKN4J has $days_left days of warranty left\n";
+    _get_crit_warning($days_left);
 }
 
-#get the table with headers: Description, Provider, Warranty, Start,
-#End, Days. These are a list of regular expressions per header, so the
-#first header can be 'Description of the Warranty' but you shorten it
-#to 'Description'. Every header corresponds with a column in the table. I
-#declare an array @headers in order to make the $te object more easily
-#readable, you do not nead to predeclare it, you could use an anonymous
-#array reference like :
-#headers => [ qw(Description Provider Warranty Start End Days) ];
-#If the headers change, just change them here.
+# get the table with headers: Description, Provider, Warranty, Start,
+# End, Days. These are a list of regular expressions per header, so the
+# first header can be 'Description of the Warranty' but you shorten it
+# to 'Description'. Every header corresponds with a column in the table. I
+# declare an array @headers in order to make the $te object more easily
+# readable, you do not nead to predeclare it, you could use an anonymous
+# array reference like :
+# headers => [ qw(Description Provider Warranty Start End Days) ];
+# If the headers change, just change them here.
 
 #===  FUNCTION  ================================================================
 #         NAME:  _days_warranty_left
@@ -145,7 +168,6 @@ sub _days_warranty_left {
     $te->parse_file( $content) ;
 
     # get the rows
-    sleep 10;
     dbg("get rows in the html tables");
     for my $ts($te->tables) {
 
@@ -169,7 +191,7 @@ sub _days_warranty_left {
 #   PARAMETERS:  @days_left
 #      RETURNS:  $days_left
 #  DESCRIPTION:  ????
-#       THROWS:  no exceptions
+#       THROWS:  if we do not get 2 values in @days_left, croak
 #     COMMENTS:  none
 #     SEE ALSO:  n/a
 #===============================================================================
@@ -183,7 +205,7 @@ sub _get_days_left {
         }
     }
     else {
-        dbg("Something wet wrong while comparing \@days_left");
+        dbg("We did not get 2 values in \@days_left, do we have the right dell tag?");
         dbg(scalar(@days_left));
         dbg(@days_left);
         return "UNKONWN";
@@ -197,9 +219,8 @@ sub _is_days_left_defined {
     return ;
     }
     else {
-        print "Could not find the number of days left in the warranty.\n";
-        print "Have you entered a correct Service Tag?\n";
-        exit 3;
+        print "Could not find the number of days left in the warranty. Have you entered a correct Service Tag?\n";
+        exit $ERRORS{CRITICAL};
     }
 }	# ----------  end of subroutine _is_days_left_defined  ----------
 #===  FUNCTION  ================================================================
@@ -268,13 +289,80 @@ sub dbg {
     print STDERR "--", shift, "\n" if $debug;
 }	# ----------  end of subroutine dbg  ----------
 
+
+#===  FUNCTION  ================================================================
+#         NAME:  _get_delltag_dmidecode
+#      PURPOSE:  get the dell tag using dmidecode
+#   PARAMETERS:  
+#      RETURNS:  dell tag string  
+#  DESCRIPTION:  when run on the localhost, we can get the dell tag
+#                with dmidecode --type system
+#       THROWS:  no exceptions
+#     COMMENTS:  as this plugin will probably run as user nagios, we
+#                need to use sudo. dmidecode can only run as root
+#                To enable sudo dmidecode for the user nagios, edit the
+#                sudoers file with visudo and set something like this:
+#                nagios     ALL = NOPASSWD: /usr/sbin/dmidecode
+#     SEE ALSO:  n/a
+#===============================================================================
+sub _get_delltag_dmidecode {
+    my $dmidecode = "sudo dmidecode --type system";
+    dbg("running and parsing $dmidecode");
+    open my $outputdmidecode, '-|', $dmidecode or die "$!\n";
+    while ( <$outputdmidecode> ) {
+        chomp;  # dump hidden new lines please
+
+        # we need to match Serial Number: *****, we save everything
+        # after the : until a space in $1 which later becomes $tag
+        if ( $_ =~ m/^.*Serial Number: (.*)\s*$/ ) {
+            $tag = $1;
+        }
+    }
+
+    close $outputdmidecode;
+
+    dbg("this system\'s dell tag is $tag");
+
+    return $tag;
+}	# ----------  end of subroutine _get_delltag_dmidecode  ----------
+
+
+#===  FUNCTION  ================================================================
+#         NAME:  _get_crit_warning
+#      PURPOSE:  check if the value in $days_left should is bigger or
+#                smaller than $warning or $critical
+#   PARAMETERS:  $days_left
+#      RETURNS:  OK, WARNING or CRITICAL
+#  DESCRIPTION:  ????
+#       THROWS:  no exceptions
+#     COMMENTS:  none
+#     SEE ALSO:  n/a
+#===============================================================================
+sub _get_crit_warning {
+    my ($days) = @_ ;
+    dbg("number of days left now is $days");
+    if ( $days >= $warning ) {
+        print "OK: $days days of warranty left\n";
+        exit $ERRORS{OK};
+    }
+    elsif ( $days_left < $critical ) {
+        print "CRITICAL: $days days of warranty left\n";
+        exit $ERRORS{CRITICAL};
+    }
+    elsif ( $days_left < $warning && $days_left >= $critical ) {
+        print "WARNING: $days days of warranty left\n";
+        exit $ERRORS{WARNING};
+
+    }
+}
+
 =head1 NAME
 
 check_dell_warranty
 
 =head1 SYNOPSIS
 
-check_dell_warranty -H [hostname] -t [service tag number] -[vVh]
+check_dell_warranty -H [hostname] -[tcwvVh]
 
 =head1 DESCRIPTION
 
@@ -286,13 +374,19 @@ available from your Perl distributor repositories or CPAN.
 
 =head1 ARGUMENTS
 
--h | --host     Hostname/ip address of server to monitor (required)
+-H | --host     Hostname/ip address of server to monitor (required)
 
--t | --tag      Dell service tag number of server to monitor
+-t | --tag      Dell service tag number of server to monitor; if you do
+not specify one on the command line, the script will try to get it from
+dmidecode (only localhost), snmp (todo) or omreport (todo, only localhost)
 
 -V | --version  prints the version of this program
 
 -v | --verbose  prints extra debugging information
+
+-w | --warning  days before nagios gives a warning; default is 30
+
+-c | --critical days before nagios gives a critical alert; default is 10
 
 -h | --help | -?  print this help text
 
