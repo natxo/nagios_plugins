@@ -330,7 +330,8 @@ sub _get_delltag_dmidecode {
 #===  FUNCTION  ================================================================
 #         NAME:  _get_crit_warning
 #      PURPOSE:  check if the value in $days_left should is bigger or
-#                smaller than $warning or $critical
+#                smaller than $warning or $critical. It now removes the
+#                temporary file created by the script.
 #   PARAMETERS:  $days_left
 #      RETURNS:  OK, WARNING or CRITICAL
 #  DESCRIPTION:  ????
@@ -342,14 +343,17 @@ sub _get_crit_warning {
     my ($days) = @_ ;
     dbg("number of days left now is $days");
     if ( $days >= $warning ) {
+        unlink $content;
         print "OK: $days days of warranty left\n";
         exit $ERRORS{OK};
     }
     elsif ( $days_left < $critical ) {
+        unlink $content;
         print "CRITICAL: $days days of warranty left\n";
         exit $ERRORS{CRITICAL};
     }
     elsif ( $days_left < $warning && $days_left >= $critical ) {
+        unlink $content;
         print "WARNING: $days days of warranty left\n";
         exit $ERRORS{WARNING};
 
