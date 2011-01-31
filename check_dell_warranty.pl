@@ -343,17 +343,17 @@ sub _get_crit_warning {
     my ($days) = @_ ;
     dbg("number of days left now is $days");
     if ( $days >= $warning ) {
-        unlink $content;
+        unlink $content if -e $content or warn "could not delete $content: $!\n";
         print "OK: $days days of warranty left\n";
         exit $ERRORS{OK};
     }
     elsif ( $days_left < $critical ) {
-        unlink $content;
+        unlink $content if -e $content or warn "could not delete $content: $!\n";
         print "CRITICAL: $days days of warranty left\n";
         exit $ERRORS{CRITICAL};
     }
     elsif ( $days_left < $warning && $days_left >= $critical ) {
-        unlink $content;
+        unlink $content if -e $content or warn "could not delete $content: $!\n";
         print "WARNING: $days days of warranty left\n";
         exit $ERRORS{WARNING};
 
