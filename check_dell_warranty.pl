@@ -404,14 +404,18 @@ How to debug HTML::TableExtract
 Replace the $te object and for loop with this to get *all tables* and
 their location in the $content
 
-my $te = HTML::TableExtract->new();
-$te->parse_file($url);
-for my $ts ($te->tables) {
-    print "Table (", join(',', $ts->coords), "):\n";
-    for my $row_ref ($ts->rows) {
-        print join(',', @$row_ref), "\n";
+ 
+    my $te = HTML::TableExtract->new();
+
+    $te->parse_file($url);
+
+    for my $ts ($te->tables) {
+        print "Table (", join(',', $ts->coords), "):\n";
+
+        for my $row_ref ($ts->rows) {
+            print join(',', @$row_ref), "\n";
+        }
     }
-}
 
 You get all the tables in $content and the one we want is something like this:
 
