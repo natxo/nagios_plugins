@@ -160,7 +160,7 @@ elsif ( defined $file_is_text ) {
 sub _days_warranty_left {
     my ( $content ) = @_;
     use HTML::TableExtract;
-    my @headers = qw(Description Provider Warranty Start End Days) ;
+    my @headers = qw(Description Provider Start End Days) ;
     my $te = HTML::TableExtract->new( headers => \@headers );
 
     #parse the $content 
@@ -175,7 +175,7 @@ sub _days_warranty_left {
 
             # store the days left value in global @days_left
             dbg("save the value in the days left cell in \@days_left");
-            push @days_left, $row_ref->[5];
+            push @days_left, $row_ref->[4];
         };
     };
 
