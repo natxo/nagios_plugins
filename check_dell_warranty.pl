@@ -31,7 +31,7 @@ my %ERRORS = (
     'WARNING'   => 1,
     'CRITICAL'  => 2,
     'UNKNOWN'   => 3,
-    'DEPENDENT' => 4
+    'DEPENDENT' => 4,
 );
 my $file_is_text   = undef;
 my $file_is_binary = undef;
