@@ -3,16 +3,16 @@
 #
 #         FILE:  check_dell_warranty.pl
 #
-#        USAGE:  ./check_dell_warranty.pl  
+#        USAGE:  ./check_dell_warranty.pl
 #
-#  DESCRIPTION: get the warranty details for hardware from the Dell website 
+#  DESCRIPTION: get the warranty details for hardware from the Dell website
 #
 #      OPTIONS:  ---
 # REQUIREMENTS:  ---
 #         BUGS:  ---
 #        NOTES:  ---
 #       AUTHOR:  Natxo Asenjo (), nasenjo@asenjo.nl
-#      COMPANY:  
+#      COMPANY:
 #      VERSION:  1.0
 #      CREATED:  09/21/2010 09:25:54 PM
 #     REVISION:  ---
@@ -26,36 +26,43 @@ use File::Temp;
 use Getopt::Long;
 use Pod::Usage;
 
-my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
-my $file_is_text = undef;
-my $file_is_binary= undef;
-my $debug = 0;
-my $help = 0;
-my $host = 0;
-my $tag = undef;
-my $version = "0.02" ;
-my $revision = undef;
-my $warning = 10;
-my $critical = 20;
+my %ERRORS = (
+    'OK'        => 0,
+    'WARNING'   => 1,
+    'CRITICAL'  => 2,
+    'UNKNOWN'   => 3,
+    'DEPENDENT' => 4
+);
+my $file_is_text   = undef;
+my $file_is_binary = undef;
+my $debug          = 0;
+my $help           = 0;
+my $host           = 0;
+my $tag            = undef;
+my $version        = "0.02";
+my $revision       = undef;
+my $warning        = 10;
+my $critical       = 20;
 
-Getopt::Long::Configure("no_ignore_case", "bundling");
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
-    'H|hostname=s'      =>  \$host,
-    't|tag=s'           =>  \$tag,
-    'h|help|?'          =>  \$help,
-    'v|verbose'         =>  \$debug,
-    'V|version'         =>  \$revision,
-    'w|warning=i'       =>  \$warning,
-    'c|critical=i'      =>  \$critical,
+    'H|hostname=s' => \$host,
+    't|tag=s'      => \$tag,
+    'h|help|?'     => \$help,
+    'v|verbose'    => \$debug,
+    'V|version'    => \$revision,
+    'w|warning=i'  => \$warning,
+    'c|critical=i' => \$critical,
 );
 
 # get version info if requested and exit
-if ( $revision ) {
-     print "Version: $version\n";
-     exit $ERRORS{OK};
-     }
+if ($revision) {
+    print "Version: $version\n";
+    exit $ERRORS{OK};
+}
 
 pod2usage(1) if $help;
+
 #pod2usage(-verbose=>0, -noperldoc => 1,) if help();
 #pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
 pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host;
@@ -68,7 +75,7 @@ if ( !defined $tag and $host eq "localhost" ) {
     dbg("tag is $tag");
 }
 
-# :TODO:01/11/2011 11:03:58 PM:: 
+# :TODO:01/11/2011 11:03:58 PM::
 # if $host is remote, then we need to check it from snmp;
 # we kan get the serial number/service tag remotely from snmp:
 # snmpwalk host -c public -v 1 1.3.6.1.4.1.674.10892.1.300.10.1.11.1
@@ -77,7 +84,8 @@ if ( !defined $tag and $host eq "localhost" ) {
 # If we cannot get a $tag either from the cli options or dmidecode or
 # snmp, then we cannot go on. End script then.
 unless ( defined $tag ) {
-    print "We could not find an appropriate dell tag string. Without one we cannot use this plugin.\n";
+    print
+"We could not find an appropriate dell tag string. Without one we cannot use this plugin.\n";
     exit $ERRORS{CRITICAL};
 }
 
@@ -91,19 +99,23 @@ my $days_left = undef;
 
 # create a temporary file where we will save the Dell website with the
 # warranty info. The file will clear itself when the script is finished
-dbg("create a temporary file to store the Dell site with the warranty
-    info");
+dbg(
+    "create a temporary file to store the Dell site with the warranty
+    info"
+);
 my $content = File::Temp->new();
 
 # define the mechanize object
 my $mech = WWW::Mechanize->new( autocheck => 1 );
 
 # set the user agent that will show in dell's logs
-$mech->agent("check_dell_warranty/$version; nagios plugin to monitor number of days left before warranty expires");
+$mech->agent(
+"check_dell_warranty/$version; nagios plugin to monitor number of days left before warranty expires"
+);
 
 my $url =
 "http://support.dell.com/support/topics/global.aspx/support/my_systems_info/details?c=us&l=en&s=gen&ServiceTag="
-. $tag;
+  . $tag;
 
 dbg("site is $url");
 
@@ -112,7 +124,7 @@ dbg("dump the site to the temporary file $content");
 $mech->get( $url, ":content_file" => "$content" );
 
 die "cannot get the page: ", $mech->response->status_line
-    unless $mech->success;
+  unless $mech->success;
 
 # check if $content is gzipped
 _is_file_text_or_bin($content);
@@ -123,14 +135,14 @@ _is_file_text_or_bin($content);
 # binary. Once we know that, we can extract the file, parse it and get
 # the results in one go
 if ( defined $file_is_binary ) {
-    dbg( "Yes, we need to gunzip!");
+    dbg("Yes, we need to gunzip!");
     _extract_file($content);
     _days_warranty_left($content);
     _get_days_left(@days_left);
     _get_crit_warning($days_left);
 }
 elsif ( defined $file_is_text ) {
-    dbg( "no compression found, proceeding with the rest");
+    dbg("no compression found, proceeding with the rest");
     _days_warranty_left();
     _get_days_left(@days_left);
     _get_crit_warning($days_left);
@@ -158,31 +170,30 @@ elsif ( defined $file_is_text ) {
 #     SEE ALSO:  pod file above
 #===============================================================================
 sub _days_warranty_left {
-    my ( $content ) = @_;
+    my ($content) = @_;
     use HTML::TableExtract;
-    my @headers = qw(Description Provider Start End Days) ;
+    my @headers = qw(Description Provider Start End Days);
     my $te = HTML::TableExtract->new( headers => \@headers );
 
-    #parse the $content 
+    #parse the $content
     dbg("parsing the $content file");
-    $te->parse_file( $content) ;
+    $te->parse_file($content);
 
     # get the rows
     dbg("get rows in the html tables");
-    for my $ts($te->tables) {
+    for my $ts ( $te->tables ) {
 
-        for my $row_ref ($ts->rows) {
+        for my $row_ref ( $ts->rows ) {
 
             # store the days left value in global @days_left
             dbg("save the value in the days left cell in \@days_left");
             push @days_left, $row_ref->[4];
-        };
-    };
+        }
+    }
 
     dbg("@days_left");
     return @days_left;
-}	# ----------  end of subroutine days_warranty_left  ----------
-
+}    # ----------  end of subroutine days_warranty_left  ----------
 
 #===  FUNCTION  ================================================================
 #         NAME:  get_days_left
@@ -198,31 +209,34 @@ sub _days_warranty_left {
 
 sub _get_days_left {
     if ( scalar(@days_left) == 2 ) {
-        if ($_[1] == $_[0]) {
-           $days_left = $_[1];
-           dbg("getting the array \@days_left");
-           return $days_left;
+        if ( $_[1] == $_[0] ) {
+            $days_left = $_[1];
+            dbg("getting the array \@days_left");
+            return $days_left;
         }
     }
     else {
-        dbg("We did not get 2 values in \@days_left, do we have the right dell tag?");
-        dbg(scalar(@days_left));
+        dbg(
+"We did not get 2 values in \@days_left, do we have the right dell tag?"
+        );
+        dbg( scalar(@days_left) );
         dbg(@days_left);
         return "UNKONWN";
     }
 }
 
-
 sub _is_days_left_defined {
-    ( $days_left )	= @_;
-    if ( defined $days_left) {
-    return ;
+    ($days_left) = @_;
+    if ( defined $days_left ) {
+        return;
     }
     else {
-        print "Could not find the number of days left in the warranty. Have you entered a correct Service Tag?\n";
+        print
+"Could not find the number of days left in the warranty. Have you entered a correct Service Tag?\n";
         exit $ERRORS{CRITICAL};
     }
-}	# ----------  end of subroutine _is_days_left_defined  ----------
+}    # ----------  end of subroutine _is_days_left_defined  ----------
+
 #===  FUNCTION  ================================================================
 #         NAME:  _is_file_text_or_bin
 #      PURPOSE:  find out if dumped file is compressed or text only
@@ -236,17 +250,16 @@ sub _is_days_left_defined {
 #     SEE ALSO:  n/a
 #===============================================================================
 sub _is_file_text_or_bin {
-    my	( $dumped_file )	= @_;
-    if ( -T $dumped_file) {
+    my ($dumped_file) = @_;
+    if ( -T $dumped_file ) {
         dbg("$content is a text file!");
-        return $file_is_text = 1 ;
+        return $file_is_text = 1;
     }
     elsif ( -B $dumped_file ) {
         dbg("$content is a binary file!");
         return $file_is_binary = 1;
     }
-}	# ----------  end of subroutine _is_file_text_or_bin  ----------
-
+}    # ----------  end of subroutine _is_file_text_or_bin  ----------
 
 #===  FUNCTION  ================================================================
 #         NAME:  _extract_file
@@ -261,40 +274,39 @@ sub _is_file_text_or_bin {
 #     SEE ALSO:  n/a
 #===============================================================================
 sub _extract_file {
-    my	( $compressed_file )	= @_;
+    my ($compressed_file) = @_;
     use File::Copy;
     my $gzippedfile = "$content\.gz";
-    my $htmlfile = "$content\.html";
+    my $htmlfile    = "$content\.html";
 
     dbg("rename $content to $gzippedfile");
-    move($content,$gzippedfile) or
-        die "couldn't move $content to $gzippedfile: $!";
+    move( $content, $gzippedfile )
+      or die "couldn't move $content to $gzippedfile: $!";
 
     dbg("extract $gzippedfile");
     if ( -e "$gzippedfile" ) {
         system("/bin/gunzip $gzippedfile");
 
         dbg("rename $content to $htmlfile");
-        move($content,$htmlfile) or die
-            "could not move $content to $htmlfile: $!\n";
-        
+        move( $content, $htmlfile )
+          or die "could not move $content to $htmlfile: $!\n";
+
         $content = $htmlfile;
-        }
-    if (-B $content) {
+    }
+    if ( -B $content ) {
         dbg("$content is binary, HTML::Extract cannot parse it");
     }
-}	# ----------  end of subroutine _extract_file  ----------
+}    # ----------  end of subroutine _extract_file  ----------
 
 sub dbg {
     print STDERR "--", shift, "\n" if $debug;
-}	# ----------  end of subroutine dbg  ----------
-
+}    # ----------  end of subroutine dbg  ----------
 
 #===  FUNCTION  ================================================================
 #         NAME:  _get_delltag_dmidecode
 #      PURPOSE:  get the dell tag using dmidecode
-#   PARAMETERS:  
-#      RETURNS:  dell tag string  
+#   PARAMETERS:
+#      RETURNS:  dell tag string
 #  DESCRIPTION:  when run on the localhost, we can get the dell tag
 #                with dmidecode --type system
 #       THROWS:  no exceptions
@@ -309,8 +321,8 @@ sub _get_delltag_dmidecode {
     my $dmidecode = "sudo dmidecode --type system";
     dbg("running and parsing $dmidecode");
     open my $outputdmidecode, '-|', $dmidecode or die "$!\n";
-    while ( <$outputdmidecode> ) {
-        chomp;  # dump hidden new lines please
+    while (<$outputdmidecode>) {
+        chomp;    # dump hidden new lines please
 
         # we need to match Serial Number: *****, we save everything
         # after the : until a space in $1 which later becomes $tag
@@ -324,8 +336,7 @@ sub _get_delltag_dmidecode {
     dbg("this system\'s dell tag is $tag");
 
     return $tag;
-}	# ----------  end of subroutine _get_delltag_dmidecode  ----------
-
+}    # ----------  end of subroutine _get_delltag_dmidecode  ----------
 
 #===  FUNCTION  ================================================================
 #         NAME:  _get_crit_warning
@@ -340,20 +351,26 @@ sub _get_delltag_dmidecode {
 #     SEE ALSO:  n/a
 #===============================================================================
 sub _get_crit_warning {
-    my ($days) = @_ ;
+    my ($days) = @_;
     dbg("number of days left now is $days");
     if ( $days >= $warning ) {
-        unlink $content if -e $content or warn "could not delete $content: $!\n";
+        unlink $content
+          if -e $content
+              or warn "could not delete $content: $!\n";
         print "OK: $days days of warranty left\n";
         exit $ERRORS{OK};
     }
     elsif ( $days_left < $critical ) {
-        unlink $content if -e $content or warn "could not delete $content: $!\n";
+        unlink $content
+          if -e $content
+              or warn "could not delete $content: $!\n";
         print "CRITICAL: $days days of warranty left\n";
         exit $ERRORS{CRITICAL};
     }
     elsif ( $days_left < $warning && $days_left >= $critical ) {
-        unlink $content if -e $content or warn "could not delete $content: $!\n";
+        unlink $content
+          if -e $content
+              or warn "could not delete $content: $!\n";
         print "WARNING: $days days of warranty left\n";
         exit $ERRORS{WARNING};
 
