@@ -326,8 +326,10 @@ sub _get_delltag_dmidecode {
 
         # we need to match Serial Number: *****, we save everything
         # after the : until a space in $1 which later becomes $tag
+        # update: now we return the lower case tag after an update of
+        # Dell's site
         if ( $_ =~ m/^.*Serial Number: (.*)\s*$/ ) {
-            $tag = $1;
+            $tag = lc $1;
         }
     }
 
