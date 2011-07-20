@@ -13,7 +13,7 @@
 #        NOTES:  ---
 #       AUTHOR:  Natxo Asenjo (), nasenjo@asenjo.nl
 #      COMPANY:
-#      VERSION:  1.0
+#      VERSION:  0.3
 #      CREATED:  09/21/2010 09:25:54 PM
 #     REVISION:  ---
 #===============================================================================
@@ -39,10 +39,10 @@ my $debug          = 0;
 my $help           = 0;
 my $host           = 0;
 my $tag            = undef;
-my $version        = "0.02";
+my $version        = "0.03";
 my $revision       = undef;
-my $warning        = 10;
-my $critical       = 20;
+my $warning        = 90;
+my $critical       = 30;
 
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
@@ -244,7 +244,7 @@ sub _is_days_left_defined {
     else {
         print
 "Could not find the number of days left in the warranty. Have you entered a correct Service Tag?\n";
-        exit $ERRORS{CRITICAL};
+        exit $ERRORS{UNKNOWN};
     }
 }    # ----------  end of subroutine _is_days_left_defined  ----------
 
@@ -373,20 +373,19 @@ sub _get_crit_warning {
         print "OK: $days days of warranty left\n";
         exit $ERRORS{OK};
     }
-    elsif ( $days_left < $critical ) {
-        unlink $content
-          if -e $content
-              or warn "could not delete $content: $!\n";
-        print "CRITICAL: $days days of warranty left\n";
-        exit $ERRORS{CRITICAL};
-    }
-    elsif ( $days_left < $warning && $days_left >= $critical ) {
+    elsif ( $days_left < $warning && $days_left > $critical ) {
         unlink $content
           if -e $content
               or warn "could not delete $content: $!\n";
         print "WARNING: $days days of warranty left\n";
         exit $ERRORS{WARNING};
-
+    }
+    elsif ( $days_left <= $critical ) {
+        unlink $content
+          if -e $content
+              or warn "could not delete $content: $!\n";
+        print "CRITICAL: $days days of warranty left\n";
+        exit $ERRORS{CRITICAL};
     }
 }
 
@@ -418,9 +417,9 @@ dmidecode (only localhost), snmp (todo) or omreport (todo, only localhost)
 
 -v | --verbose  prints extra debugging information
 
--w | --warning  days before nagios gives a warning; default is 30
+-w | --warning  days before nagios gives a warning; default is 90
 
--c | --critical days before nagios gives a critical alert; default is 10
+-c | --critical days before nagios gives a critical alert; default is 30
 
 -h | --help | -?  print this help text
 
