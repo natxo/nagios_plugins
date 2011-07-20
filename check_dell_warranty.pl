@@ -80,13 +80,15 @@ if ( !defined $tag and $host eq "localhost" ) {
 # we kan get the serial number/service tag remotely from snmp:
 # snmpwalk host -c public -v 1 1.3.6.1.4.1.674.10892.1.300.10.1.11.1
 # returns a string: NMPv2-SMI::enterprises.674.10892.1.300.10.1.11.1 = STRING: "H980L4J"
+# this will *not* work with vmware esxi because there is no snmp support
+# grrrr
 
 # If we cannot get a $tag either from the cli options or dmidecode or
 # snmp, then we cannot go on. End script then.
 unless ( defined $tag ) {
     print
 "We could not find an appropriate dell tag string. Without one we cannot use this plugin.\n";
-    exit $ERRORS{CRITICAL};
+    exit $ERRORS{UNKNOWN};
 }
 
 # we will save the 'days left' field in this array. There usually are
@@ -196,22 +198,31 @@ sub _days_warranty_left {
 }    # ----------  end of subroutine days_warranty_left  ----------
 
 #===  FUNCTION  ================================================================
-#         NAME:  get_days_left
+#         NAME:  _get_days_left
 #      PURPOSE:  compare the @days_left array, get just one of the two
 #                values if they are equal
 #   PARAMETERS:  @days_left
 #      RETURNS:  $days_left
 #  DESCRIPTION:  ????
-#       THROWS:  if we do not get 2 values in @days_left, croak
+#       THROWS:  if we do not get 2 values in @days_left, croak.
+#                If the 2nd value is '0', then there is no next business
+#                day support (only 4hr mission critical support), so
+#                just skip the second value
+#                If we get 3 values then we have prosupport and 4 hour
+#                mission critical (yay)
 #     COMMENTS:  none
 #     SEE ALSO:  n/a
 #===============================================================================
 
 sub _get_days_left {
-    if ( scalar(@days_left) == 2 ) {
+    if ( scalar(@days_left) >= 1 ) {
         if ( $_[1] == $_[0] ) {
             $days_left = $_[1];
             dbg("getting the array \@days_left");
+            return $days_left;
+        }
+        elsif ( $_[1] == 0 ) {
+            $days_left = $_[0];
             return $days_left;
         }
     }
