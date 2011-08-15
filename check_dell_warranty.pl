@@ -221,7 +221,12 @@ sub _get_days_left {
             dbg("getting the array \@days_left");
             return $days_left;
         }
-        elsif ( $_[1] == 0 ) {
+        # if the 2nd or 3rd result are 0, keep the first
+        elsif ( $_[1]  == 0 )  {
+            $days_left = $_[0];
+            return $days_left;
+        }
+        elsif ( $_[2]  == 0 )  {
             $days_left = $_[0];
             return $days_left;
         }
