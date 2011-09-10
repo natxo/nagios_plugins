@@ -21,14 +21,45 @@
 
 use strict;
 use warnings;
+use Getopt::Long;
+use Pod::Usage;
 use Text::CSV_XS;
 
+# variables
+my ($version, $revision, $help, %lastresult_of, $checknow);
+my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
+
+$version = '1.0';
+
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+GetOptions(
+    'c|checknow'    => \$checknow,
+    'h|help|?'      => \$help,
+    'V|version'     => \$revision,
+);
+
+
+# get version info if requested and exit
+if ($revision) {
+    print "$0 version: $version\n";
+    exit $ERRORS{OK};
+}
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
+
+pod2usage( -verbose => 1, -noperldoc => 1, ) unless $checknow;
+
+if ( $^O ne "MSWin32" ) {
+    print "Sorry, this is a Windows check, run it in a Windows host\n";
+    exit $ERRORS{UNKNOWN};
+}
+
 # run schtaks, keep output in JOBS memory handle
+# switches for schtasks.exe:
+# /query: get the list of scheduled jobs
+# /fo csv: dump the list as in csv format
+# /v: verbose
 open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
 
-# variables
-my %lastresult_of;
-my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 
 # create a Text::CSV_XS object
 my $csv = Text::CSV_XS->new();
@@ -72,9 +103,46 @@ if ( scalar keys %lastresult_of == 0 ) {
     print "0K: All scheduled tasks seem to have run fine\n" ;
     exit $ERRORS{OK};
 }
-else{
+else {
     while ( my ( $key, $value) = each( %lastresult_of) ) {
     print "WARNING: scheduled task $key finished with error $value\n" ;
     exit $ERRORS{WARNING};
     }
 }
+
+=head1 NAME
+
+check_schtasks
+
+=head1 SYNOPSIS
+
+check_schtasks -c
+
+=head1 DESCRIPTION
+
+Nagios plugin to check the status of Windows scheduled tasks.
+
+This plugin *must* be run in a Windows hosts. Check it from NRPE.
+
+The plugin requires Perl in the Windows hosts with the Text::CSV_XS
+module. You can install this easily from activestate.com
+
+The way the plugin works is running schtasks.exe /query /fo csv /v
+and parsing its output.
+
+Standard this plugin will skip disabled, running tasks or jobs that
+run at logon time. I also skip the 'Customer Experience' tasks,
+they mostly run incorrectly without an internet connection anyway
+and in my modest opinion they should not be there in the first place.
+
+=head1 ARGUMENTS
+
+-c | --checknow:        required
+
+-V | --version:         prints the version of this program
+
+-h | --help | -?:       print this help text
+
+=head1 AUTHOR
+
+natxo asenjo in his spare time
