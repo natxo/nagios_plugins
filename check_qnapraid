@@ -1,11 +1,12 @@
 #!/usr/bin/perl 
 #===============================================================================
 #
-#         FILE:  check_snmptest.pl
+#         FILE:  check_qnapraid
 #
-#        USAGE:  ./check_snmptest.pl  
+#        USAGE:  ./check_qnapraid  
 #
-#  DESCRIPTION:  
+#  DESCRIPTION: nagios check to monitor the health of the qnap
+#  appliances. Tested with a TS-859U-RP+ Turbo NAS 
 #
 #      OPTIONS:  ---
 # REQUIREMENTS:  ---
@@ -131,7 +132,7 @@ appliances, obviously.
 -h | --help         this help message
 
 =head1 AUTHOR
-j.asenjo@iriszorg.nl
+natxo@asenjo.nl
 
 =head1 TODO
 
