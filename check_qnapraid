@@ -123,6 +123,10 @@ nagios plugin to check the status of the qnap appliances hardware.
 The plugin requires that the SNMP service is running on the qnap
 appliances, obviously.
 
+This plugin is tested against TS-859U-RP+ Turbo NAS.
+
+This plugin requires the Net::SNMP perl library.
+
 =head1 ARGUMENTS
 
 -H | --host         hostname/ip address of server to monitor
@@ -133,10 +137,6 @@ appliances, obviously.
 
 =head1 AUTHOR
 natxo@asenjo.nl
-
-=head1 TODO
-
-add check to monitor fans
 
 =cut
 
