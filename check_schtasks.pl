@@ -3,9 +3,9 @@
 #
 #         FILE:  schtasks.pl
 #
-#        USAGE:  ./schtasks.pl  
+#        USAGE:  ./schtasks.pl
 #
-#  DESCRIPTION: nagios plugin to check if the scheduled tasks have run fine 
+#  DESCRIPTION: nagios plugin to check if the scheduled tasks have run fine
 #               The script parses the output of schtasks.exe
 #
 #      OPTIONS:  ---
@@ -13,7 +13,7 @@
 #         BUGS:  plenty, but not yet found
 #        NOTES:  ---
 #       AUTHOR:  nasenjo@asenjo.nl
-#      COMPANY:  
+#      COMPANY:
 #      VERSION:  1.0
 #      CREATED:  06-10-2010 13:47:51
 #     REVISION:  ---
@@ -26,17 +26,24 @@ use Pod::Usage;
 use Text::CSV_XS;
 
 # variables
-my ($version, $revision, $help, %lastresult_of, $checknow, %exclusions, %lastresult_excl);
-my %ERRORS=('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
+my ( $version, $revision, $help, %lastresult_of, $checknow, %exclusions,
+    %lastresult_excl );
+my %ERRORS = (
+    'OK'        => 0,
+    'WARNING'   => 1,
+    'CRITICAL'  => 2,
+    'UNKNOWN'   => 3,
+    'DEPENDENT' => 4
+);
 
 $version = '1.1';
 
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
-    'c|checknow'    => \$checknow,
-    'h|help|?'      => \$help,
-    'V|version'     => \$revision,
-    'e|exclude=i'   => \%exclusions,
+    'c|checknow'  => \$checknow,
+    'h|help|?'    => \$help,
+    'V|version'   => \$revision,
+    'e|exclude=i' => \%exclusions,
 );
 
 # get version info if requested and exit
@@ -59,8 +66,8 @@ pod2usage( -verbose => 1, -noperldoc => 1, ) unless $checknow;
 # /fo csv: dump the list as in csv format
 # /v: verbose
 # open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
-open (my $fh, "<", "/home/j.asenjo/scripts/schtasks.csv") or die "couldn't exec schtasks: $!\n";
-
+open( my $fh, "<", "/home/j.asenjo/scripts/schtasks.csv" )
+  or die "couldn't exec schtasks: $!\n";
 
 # create a Text::CSV_XS object
 my $csv = Text::CSV_XS->new();
@@ -70,39 +77,55 @@ my $csv = Text::CSV_XS->new();
 # Because in windows 2008 the task scheduler has been revamped, there are a lot of new scheduled jobs that are not important, so I
 # filter them in the next if statements
 
-while (my $line = <$fh>) {
+while ( my $line = <$fh> ) {
     chomp $line;
-    last if $line =~ /^INFO: There are no scheduled tasks.*$/ ;
+    last if $line =~ /^INFO: There are no scheduled tasks.*$/;
 
-    if ($csv->parse($line)) {
+    if ( $csv->parse($line) ) {
         my @columns = $csv->fields();
-        next if $columns[1] eq "TaskName"; # skip the header
-        next if $columns[1] eq "\\Microsoft\\Windows\\Defrag\\ManualDefrag"; # if someone starts defrag manually and it fails don't bug me
-        next if $columns[1] eq "\\Microsoft\\Windows\\Customer Experience Improvement Program\\Server\\ServerCeipAssistant" ; # WTF?
-        next if $columns[1] eq "\\Microsoft\\Windows\\NetworkAccessProtection\\NAPStatus UI" ; # WTF?
-        next if $columns[1] eq "\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator" ; # WTF?
-        next if $columns[1] eq "\\Microsoft\\Windows\\CertificateServicesClient\\UserTask-Roam" ;
-        next if $columns[1] eq "\\Microsoft\\Windows\\CertificateServicesClient\\UserTask" ;
+        next if $columns[1] eq "TaskName";    # skip the header
+        next
+          if $columns[1] eq "\\Microsoft\\Windows\\Defrag\\ManualDefrag"
+        ;    # if someone starts defrag manually and it fails don't bug me
+        next
+          if $columns[1] eq
+"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Server\\ServerCeipAssistant"
+        ;    # WTF?
+        next
+          if $columns[1] eq
+              "\\Microsoft\\Windows\\NetworkAccessProtection\\NAPStatus UI"
+        ;    # WTF?
+        next
+          if $columns[1] eq
+"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator"
+        ;    # WTF?
+        next
+          if $columns[1] eq
+              "\\Microsoft\\Windows\\CertificateServicesClient\\UserTask-Roam";
+        next
+          if $columns[1] eq
+              "\\Microsoft\\Windows\\CertificateServicesClient\\UserTask";
         next if $columns[3] eq "Disabled"; # skip if 4th column is 'disabled'
         next if $columns[2] eq "Disabled"; # skip if next run time is 'disabled'
-        next if $columns[3] eq "Running" ; # skip if the task is running now
-        next if $columns[18] eq "At logon time"; # skip if 19th colum is 'At logon time"
-        next if $columns[5] eq "N/A"; # skip if last run time is empty
-        # uncomment to debug
-        # print "$columns[1]\t$columns[6]\t$columns[8]\n";
+        next if $columns[3] eq "Running";  # skip if the task is running now
+        next
+          if $columns[18] eq
+              "At logon time";    # skip if 19th colum is 'At logon time"
+        next if $columns[5] eq "N/A";    # skip if last run time is empty
+                                         # uncomment to debug
+              # print "$columns[1]\t$columns[6]\t$columns[8]\n";
 
-        # if last result is other than 0, save taskname and last result in the %lastresult_of
+# if last result is other than 0, save taskname and last result in the %lastresult_of
         if ( $columns[6] != 0 ) {
-            $lastresult_of{$columns[1]} = $columns[6];
+            $lastresult_of{ $columns[1] } = $columns[6];
         }
 
     }
 }
 
-
 # if the %lastresult_of is empty, this will be zero
 if ( scalar keys %lastresult_of == 0 ) {
-    print "0K: All scheduled tasks seem to have run fine\n" ;
+    print "0K: All scheduled tasks seem to have run fine\n";
     exit $ERRORS{OK};
 }
 
@@ -112,31 +135,31 @@ elsif ( scalar keys %exclusions > 0 ) {
 
     # same as earlier, if hash is empty, no errors
     if ( scalar keys %lastresult_excl == 0 ) {
-        print "0K: All scheduled tasks seem to have run fine\n" ;
+        print "0K: All scheduled tasks seem to have run fine\n";
         exit $ERRORS{OK};
     }
     else {
-        while ( my ( $key, $value) = each( %lastresult_excl) ) {
-            print "WARNING: scheduled task [$key] finished with error [$value]\n" ;
+        while ( my ( $key, $value ) = each(%lastresult_excl) ) {
+            print
+              "WARNING: scheduled task [$key] finished with error [$value]\n";
             exit $ERRORS{WARNING};
-            }
+        }
     }
 }
+
 # finally, if %lastresult_of is not empty, get the warnings
 else {
-    while ( my ( $key, $value) = each( %lastresult_of) ) {
-        print "WARNING: scheduled task [$key] finished with error [$value]\n" ;
+    while ( my ( $key, $value ) = each(%lastresult_of) ) {
+        print "WARNING: scheduled task [$key] finished with error [$value]\n";
         exit $ERRORS{WARNING};
     }
 }
-
-
 
 #===  FUNCTION  ================================================================
 #         NAME:  comp_hashes
 #      PURPOSE:  compare %lastresult_of with %exclusions, create new hash with elements not in both
 #   PARAMETERS:  none
-#      RETURNS:  new hash %lastresult_excl if no matches are found 
+#      RETURNS:  new hash %lastresult_excl if no matches are found
 #  DESCRIPTION:  if no matches are found between the %lastresult_of and
 #                %exclusions hashes, fill new hash %lastresult_excl with
 #                elements that did *not* match
@@ -145,7 +168,7 @@ else {
 #     SEE ALSO:  n/a
 #===============================================================================
 sub comp_hashes {
-    while ( my ( $key, $value) = each ( %lastresult_of ) ) {
+    while ( my ( $key, $value ) = each(%lastresult_of) ) {
         if ( exists $exclusions{$key} and $value == $exclusions{$key} ) {
             next;
         }
@@ -153,7 +176,7 @@ sub comp_hashes {
             $lastresult_excl{$key} = $value;
         }
     }
-}	# ----------  end of subroutine comp_hashes  ----------
+}    # ----------  end of subroutine comp_hashes  ----------
 
 =head1 NAME
 
