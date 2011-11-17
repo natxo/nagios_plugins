@@ -1,0 +1,15 @@
+# actionsequence = ( shellcommands )
+classes:
+    # here we check if the return value of semodule --list-modules | grep
+    # mycfengine is 0. We need to escape the quotes or they disappear
+    semodulecfengine_missing = ( !ReturnsZero("/bin/sh -c \"/usr/sbin/semodule --list-modules | /bin/grep mycfengine\"") )
+
+control:
+    actionsequence = ( shellcommands )
+
+shellcommands:
+    semodulecfengine_missing::
+        #"/bin/sh -c \"/usr/sbin/semodule -i /root/mycfengine.pp\"" inform=true
+        "/usr/sbin/semodule -i /root/mycfengine.pp" inform=true
+    !semodulecfengine_missing::
+        "/usr/bin/logger selinux cfengine policy already applied"
