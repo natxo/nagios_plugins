@@ -1,0 +1,169 @@
+#!/usr/bin/perl 
+#===============================================================================
+#
+#         FILE: check_dnsext
+#
+#        USAGE: ./check_dnsext  
+#
+#  DESCRIPTION: 
+#
+#      OPTIONS: ---
+# REQUIREMENTS: ---
+#         BUGS: ---
+#        NOTES: ---
+#       AUTHOR: YOUR NAME (), 
+#      COMPANY: 
+#      VERSION: 1.0
+#      CREATED: 10/26/2011 11:27:51 PM
+#     REVISION: ---
+#===============================================================================
+
+use strict;
+use warnings;
+
+# necessary libraries
+use Net::DNS;
+use Getopt::Long;
+use Pod::Usage;
+use Data::Dumper;
+
+# variables
+my ( $host, $help, $server, $exp_address, $type, $version, $verbose,
+     $resolver, @query_result );
+
+$version = '0.1';
+
+# unless specified in the cli, the standard query type is an A resource record
+$type = 'A';
+
+# unless specified as an option, debug is 0
+$verbose = 0;
+
+# we use the system nameservers defined in /etc/resolv.conf as default. If we
+# want to use another one, this will be defined
+$server = undef;
+
+# cli options
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+GetOptions(
+    'H|host=s'             => \$host,
+    'h|?|help'             => \$help,
+    's|server=s'           => \$server,
+    'a|expected-address=s' => \$exp_address,
+    't|type=s'             => \$type,
+    'v|verbose=i'          => \$verbose,
+);
+
+# show help unless $host is defined or $help is asked :-)
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
+pod2usage() unless $host;
+
+# create resolver object, specify specific nameserver if option selected in
+# the cli
+if ( defined $server) {
+    $resolver = Net::DNS::Resolver->new(
+                nameservers => [($server)],
+                debug   => $verbose,
+    );
+}
+else {
+    $resolver = Net::DNS::Resolver->new(
+                debug   => $verbose,
+    );
+}
+
+# define query
+my $query = $resolver->query( $host, $type );
+
+# if the query is successful, we will get an answer. Here we save the results
+# in different arrays because often there is more than one value in a query
+if ($query) {
+    for my $rr ( $query->answer ) {
+        push(@query_result, $rr->exchange) if $type =~ /^mx$/i ;
+        push(@query_result, $rr->target) if $type =~ /^srv$/i ;
+    }
+}
+else {
+    warn "query failed: ", $resolver->errorstring, "\n";
+}
+
+print @query_result;
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#  Application Documentation
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+=head1 NAME
+
+check_dnsext - nagios plugin to check dns queries
+
+=head1 VERSION
+
+This documentation refers to <check_dnsext> version 0.0.1
+
+
+=head1 USAGE
+
+check_dnsext -H hostname [-t type -s server ]
+
+=head1 REQUIRED ARGUMENTS
+
+-H | --host     hostname (short or fully qualified) that we want to check.
+
+=head1 OPTIONS
+
+-H | --host     hostname (short or fully qualified) that we want to check.
+
+-s | --server   dns server we want to use. If not specified, the default
+dns server of the system will be used.
+
+-t | --type     type of dns resource record we want to query. If not
+specified, this defaults to an A record.
+
+-v | --verbose  extra debugging info. Valid values are 0 (standard, no
+need to set it explicitely) or 1.
+
+-h | -? | --help    this text
+
+=head1 DESCRIPTION
+
+Nagios plugin to check the dns forward resolution of hostnames. As opposed
+to the official nagios plugin check_dns, this plugin allows to specify
+types of dns resource records, like SRV, MX, TXT.
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+To use it in Nagios copy this file to your plugins folder (usually in
+/usr/local/nagios/libexec/ ). Make it executable for the nagios user.
+
+
+=head1 DEPENDENCIES
+
+This plugin requires the Net::DNS Perl module. If you use a Redhat based
+linux distribution, you can install it as root like so:
+
+# yum install perl-Net-DNS
+
+If you use a debian based linux distribution, the module is called
+libnet-dns-perl:
+
+# apt-get install libnet-dns-perl
+
+If you use another system, you should probably have to use the cpan shell
+to install it.
+
+=head1 AUTHOR
+
+Natxo Asenjo  (nasenjo@asenjo.nl)
+
+
+=head1 LICENCE AND COPYRIGHT
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself. See perldoc perlartistic.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+=cut
