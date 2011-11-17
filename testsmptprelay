@@ -1,0 +1,82 @@
+#!/usr/bin/perl 
+#===============================================================================
+#
+#         FILE:  kk.pl
+#
+#        USAGE:  ./kk.pl  
+#
+#  DESCRIPTION:  
+#
+#      OPTIONS:  ---
+# REQUIREMENTS:  ---
+#         BUGS:  ---
+#        NOTES:  ---
+#       AUTHOR:  Natxo Asenjo (), nasenjo@asenjo.nl
+#      COMPANY:  
+#      VERSION:  1.0
+#      CREATED:  07/22/2011 06:21:19 PM
+#     REVISION:  ---
+#===============================================================================
+
+use strict;
+use warnings;
+
+my ( $host, $from, $to, $helo, $help, $debug );
+$debug = undef;
+
+use Getopt::Long;
+use Pod::Usage;
+
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+GetOptions(
+    'h|host=s'    => \$host,
+    'f|from=s'    => \$from,
+    't|to=s'      => \$to,
+    'l|hello=s'   => \$helo,
+    'H|?|help' => \$help,
+    'd|debug'   => \$debug,
+);
+
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
+pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host and $from and $to and $helo;
+
+
+if ( defined( $debug ) ) {
+    print "smtp server is: $host\n";
+    print "mail from address is $from\n";
+    print "rcpt to address is $to\n";
+    print "helo string is $helo\n";
+}
+
+use Net::SMTP;
+
+my $smtp = Net::SMTP->new(
+                        Host    => $host,
+                        Hello   => $helo,
+                        Timeout => 30,
+                        Debug   => 1,
+                    );
+
+$smtp->mail( "$from" );
+
+$smtp->to( "$to" );
+
+$smtp->data();
+
+$smtp->datasend("A simple relay test");
+
+$smtp->dataend();
+
+$smtp->quit();
+
+=head1 ARGUMENTS
+
+-h | --host     smtp server we want to test
+
+-f | --from     mail from address used
+
+-t | --to       rcpt to address used
+
+-l | --hello    helo address used
+
+-H | --help | -?  this help message
