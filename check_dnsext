@@ -29,7 +29,7 @@ use Data::Dumper;
 
 # variables
 my (
-    $host,    $help,    $server,   $exp_address, $type,
+    $host,    $help,    $server,   @exp_address, $type,
     $version, $verbose, $resolver, @query_result
 );
 
@@ -51,7 +51,7 @@ GetOptions(
     'H|host=s'             => \$host,
     'h|?|help'             => \$help,
     's|server=s'           => \$server,
-    'a|expected-address=s' => \$exp_address,
+    'a|expected-address=s' => \@exp_address,
     't|type=s'             => \$type,
     'v|verbose=i'          => \$verbose,
 );
@@ -77,14 +77,24 @@ my $query = $resolver->query( $host, $type );
 
 # if the query is successful, we will get an answer. Here we save the results
 # in different arrays because often there is more than one value in a query
+
+# uncomment the Data::Dumper lines to inspect the result for a new type rr
 if ($query) {
     for my $rr ( $query->answer ) {
+#        use Data::Dumper;
+#        print Dumper $rr;
         push( @query_result, $rr->exchange ) if $type =~ /^mx$/i;
         push( @query_result, $rr->target )   if $type =~ /^srv$/i;
+        push( @query_result, $rr->address ) if $type =~ /^a$/i;
+        push( @query_result, $rr->cname ) if $type =~ /^cname$/i;
+        push( @query_result, $rr->char_str_list ) if $type =~ /^txt$/i;
+        push( @query_result, $rr->nsdname ) if $type =~ /^ns$/i;
+        push( @query_result, $rr->ptrdname ) if $type =~ /^ptr$/i;
     }
 }
 else {
     warn "query failed: ", $resolver->errorstring, "\n";
+    exit 2;
 }
 
 print @query_result;
@@ -104,7 +114,7 @@ This documentation refers to <check_dnsext> version 0.0.1
 
 =head1 USAGE
 
-check_dnsext -H hostname [-t type -s server ]
+check_dnsext -H hostname [-t type -s server -v]
 
 =head1 REQUIRED ARGUMENTS
 
@@ -151,6 +161,17 @@ libnet-dns-perl:
 
 If you use another system, you should probably have to use the cpan shell
 to install it.
+
+=head1 TODO
+
+we can fill the --expected-address @exp_address with comman separated strings
+and separate them so:
+
+print @exp_address, "\n";
+@exp_address = split(/,/,join(',',@exp_address)) ;
+
+Then use the Array::Compare module with the perm option to compare the
+@query_result and this @exp_address. If they match, then it will be OK.
 
 =head1 AUTHOR
 
