@@ -58,7 +58,7 @@ GetOptions(
 
 # show help unless $host is defined or $help is asked :-)
 pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
-pod2usage() unless $host;
+pod2usage() unless ( $host and @exp_address );
 
 # create resolver object, specify specific nameserver if option selected in
 # the cli
@@ -97,7 +97,20 @@ else {
     exit 2;
 }
 
-print @query_result;
+# the @exp_address may have several commas separated values, remove the commas
+@exp_address = split(/,/,join(',',@exp_address)) ;
+
+# now compare bot the @query_result and @expected_addres arrays, if they
+# contain the same elements, all is good
+use Array::Compare;
+my $comparison = Array::Compare->new;
+
+if ( $comparison->perm( \@query_result, \@exp_address ) ) {
+    print "arrays are similar\n";
+}
+else {
+        print "arrays are completely different\n";
+}
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #  Application Documentation
@@ -114,26 +127,54 @@ This documentation refers to <check_dnsext> version 0.0.1
 
 =head1 USAGE
 
-check_dnsext -H hostname [-t type -s server -v]
+check_dnsext -H hostname -a expected_addres [-t type -s server -v]
 
 =head1 REQUIRED ARGUMENTS
 
--H | --host     hostname (short or fully qualified) that we want to check.
+-H | --host
+
+hostname (simple or fully qualified) or ip address that we want to
+check. This can also be a domain name (TLD) if checking a SOA, NS, MX
+resource record.
+
+-a | --expected-address
+
+Expected outcome of the dns query. If we expect a multi valued outcome, then
+use a comma to separate them. For example:
+
+--expected-address=host.domain.tld,host2.domain.tld,host3.domain.tld,...
 
 =head1 OPTIONS
 
--H | --host     hostname (short or fully qualified) that we want to check.
+-H | --host
 
--s | --server   dns server we want to use. If not specified, the default
-dns server of the system will be used.
+hostname (simple or fully qualified) or ip address that we want to
+check. This can also be a domain name (TLD) if checking a SOA, NS, MX
+resource record.
 
--t | --type     type of dns resource record we want to query. If not
+-a | --expected-address
+
+Expected outcome of the dns query. If we expect a multi valued outcome, then
+use a comma to separate them. For example:
+
+-s | --server   
+
+dns server we want to use. If not specified, the default
+dns resolver of the system will be used.
+
+-t | --type     
+
+type of dns resource record we want to query. If not
 specified, this defaults to an A record.
 
--v | --verbose  extra debugging info. Valid values are 0 (standard, no
+-v | --verbose  
+
+extra debugging info. Valid values are 0 (standard, no
 need to set it explicitely) or 1.
 
--h | -? | --help    this text
+-h | -? | --help    
+
+this text
 
 =head1 DESCRIPTION
 
@@ -149,34 +190,29 @@ To use it in Nagios copy this file to your plugins folder (usually in
 
 =head1 DEPENDENCIES
 
-This plugin requires the Net::DNS Perl module. If you use a Redhat based
-linux distribution, you can install it as root like so:
+This plugin requires the Net::DNS and the Array::Compare Perl modules. If you
+use a Redhat based linux distribution, you can install Net::DNS so: 
 
 # yum install perl-Net-DNS
 
-If you use a debian based linux distribution, the module is called
-libnet-dns-perl:
+The Array::Compare module is unfortunately not packaged in any of the
+usual yum repositories but building a spec file and creating a rpm
+package is for this one very straight forward. Dave Cross wrote a nice
+presentation showing how to achieve this: Perl in RPM-Land. You can read
+it in L<http://www.slideshare.net/davorg/perl-in-rpmland-presentation>
+
+If you use a debian based linux distribution, the modules are called
+libnet-dns-perl and libarray-compare-perl:
 
 # apt-get install libnet-dns-perl
+# apt-get install libarray-compare-perl
 
 If you use another system, you should probably have to use the cpan shell
-to install it.
-
-=head1 TODO
-
-we can fill the --expected-address @exp_address with comman separated strings
-and separate them so:
-
-print @exp_address, "\n";
-@exp_address = split(/,/,join(',',@exp_address)) ;
-
-Then use the Array::Compare module with the perm option to compare the
-@query_result and this @exp_address. If they match, then it will be OK.
+to install them. You could use perlbrew as well.
 
 =head1 AUTHOR
 
-Natxo Asenjo  (nasenjo@asenjo.nl)
-
+Natxo Asenjo  (nasenjo@asenjo.nl_removethis_)
 
 =head1 LICENCE AND COPYRIGHT
 
