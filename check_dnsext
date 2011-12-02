@@ -123,6 +123,12 @@ else {
 
 check_dnsext - nagios plugin to check dns queries
 
+=head1 DESCRIPTION
+
+Nagios plugin to check the dns forward resolution of hostnames. As opposed
+to the official nagios plugin check_dns, this plugin allows to specify
+types of dns resource records, like SRV, MX, TXT.
+
 =head1 VERSION
 
 This documentation refers to <check_dnsext> version 0.0.1
@@ -178,12 +184,6 @@ need to set it explicitely) or 1.
 -h | -? | --help    
 
 this text
-
-=head1 DESCRIPTION
-
-Nagios plugin to check the dns forward resolution of hostnames. As opposed
-to the official nagios plugin check_dns, this plugin allows to specify
-types of dns resource records, like SRV, MX, TXT.
 
 =head1 CONFIGURATION AND ENVIRONMENT
 
