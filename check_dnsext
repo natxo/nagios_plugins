@@ -93,7 +93,8 @@ if ($query) {
     }
 }
 else {
-    warn "query failed: ", $resolver->errorstring, "\n";
+    warn "CRITICAL: dns $type RR query for $host returns ",
+        $resolver->errorstring,  "\n";
     exit 2;
 }
 
@@ -106,10 +107,12 @@ use Array::Compare;
 my $comparison = Array::Compare->new;
 
 if ( $comparison->perm( \@query_result, \@exp_address ) ) {
-    print "arrays are similar\n";
+    print "OK: dns $type RR query for $host returns @query_result\n";
+    exit 0;
 }
 else {
-        print "arrays are completely different\n";
+    print "WARNING: dns $type RR query for $host returns @query_result\n";
+    exit 1;
 }
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
