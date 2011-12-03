@@ -65,7 +65,7 @@ pod2usage( -verbose => 1, -noperldoc => 1, ) unless $checknow;
 # /query: get the list of scheduled jobs
 # /fo csv: dump the list as in csv format
 # /v: verbose
-# open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
+open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
 
 # create a Text::CSV_XS object
 my $csv = Text::CSV_XS->new();
@@ -75,7 +75,7 @@ my $csv = Text::CSV_XS->new();
 # Because in windows 2008 the task scheduler has been revamped, there are a lot of new scheduled jobs that are not important, so I
 # filter them in the next if statements
 
-while ( my $line = <DATA> ) {
+while ( my $line = <JOBS> ) {
     chomp $line;
     last if $line =~ /^INFO: There are no scheduled tasks.*$/;
 
@@ -198,17 +198,3 @@ check_schtasks -c --exclude "job with spaces in it"=2
 natxo asenjo in his spare time
 
 =cut
-
-__DATA__
-"HostName","TaskName","Next Run Time","Status","Logon Mode","Last Run Time","Last Result","Creator","Schedule","Task To Run","Start In","Comment","Scheduled Task State","Scheduled Type","Start Time","Start Date","End Date","Days","Months","Run As User","Delete Task If Not Rescheduled","Stop Task If Runs X Hours and X Mins","Repeat: Every","Repeat: Until: Time","Repeat: Until: Duration","Repeat: Stop If Still Running","Idle Time","Power Management"
-"host","Defrag C","04:00:00, 09-10-2011","","Interactive/Background","04:00:00, 02-10-2011","0","SYSTEM","At 04:00 every Sun of every week, starting 26-05-2010","C:\WINDOWS\system32\defrag.exe c:","C:\WINDOWS\system32","N/A","Enabled","Weekly","04:00:00","26-05-2010","N/A","SUNDAY","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","DkTknSrv","05:00:00, 07-10-2011","","Interactive/Background","05:00:00, 06-10-2011","0","SYSTEM","At 05:00 every day, starting 05-05-2011","d:\scripts\DkTknSrv\DkTknSrv.cmd ","d:\scripts\DkTknSrv","N/A","Enabled","Daily ","05:00:00","05-05-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","logoff disconnected sessions","15:32:00, 06-10-2011","","Interactive/Background","14:32:00, 06-10-2011","0","SYSTEM","Every 1 hour(s) from 21:32 for 24 hour(s) every day, starting 16-02-2011","d:\perl\bin\perl.exe d:\scripts\logoffdisc.pl","d:\perl\bin","N/A","Enabled","Hourly ","21:32:00","16-02-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","1 Hour(s)","None","24 Hour(s): 0 Minute(s)","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","Memory Optimization Schedule","Disabled","","Background only","Never","0","SYSTEM","Disabled","C:\Program Files\Citrix\Server Resource Management\Memory Optimization Management\Program\CtxBace.exe -optimize","N/A","N/A","Disabled","At system start up","At system start up","01-01-2001","N/A","N/A","N/A","NT AUTHORITY\SYSTEM","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","Memory Optimization Schedule","Disabled","","Background only","Never","0","SYSTEM","Disabled","C:\Program Files\Citrix\Server Resource Management\Memory Optimization Management\Program\CtxBace.exe -optimize","N/A","N/A","Disabled","Hourly ","03:00:00","01-01-1999","N/A","Everyday","N/A","NT AUTHORITY\SYSTEM","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","perfmon-srv","02:00:00, 07-10-2011","","Interactive/Background","02:00:09, 06-10-2011","0","SYSTEM","At 02:00 every day, starting 02-07-2010","d:\scripts\startup\termserv.cmd ","d:\scripts\startup","N/A","Enabled","Daily ","02:00:00","02-07-2010","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","blabla","At system start up","","Interactive/Background","01:36:17, 06-10-2011","0","administrator","Run at system startup","d:\scripts\bla\prog.vbs ","d:\scripts\bla","N/A","Enabled","At system start up","At system start up","02-02-2010","N/A","N/A","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","robocopy dir","15:22:00, 06-10-2011","","Interactive/Background","14:22:00, 06-10-2011","3","SYSTEM","Every 1 hour(s) from 02:22 for 24 hour(s) every day, starting 06-09-2011","d:\scripts\robocopy.exe source d:\dir /copyall /mir /purge /r:2 /w:3 /xf program.exe /xd archive /np /log+:d:\scripts\logs\robocopy.log","d:\scripts","N/A","Enabled","Hourly ","02:22:00","06-09-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","1 Hour(s)","None","24 Hour(s): 0 Minute(s)","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","shutdown","01:30:00, 07-10-2011","","Interactive/Background","01:30:00, 06-10-2011","0","SYSTEM","At 01:30 every day, starting 04-12-2009","d:\scripts\shutdown\shutdown.cmd ","d:\scripts\shutdown","N/A","Enabled","Daily ","01:30:00","04-12-2009","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","startup","At system start up","","Interactive/Background","01:36:10, 06-10-2011","0","SYSTEM","Run at system startup","d:\Scripts\Startup\startup.cmd ","d:\Scripts\Startup","N/A","Enabled","At system start up","At system start up","04-12-2009","N/A","N/A","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
-"host","robocopy dir","15:22:00, 06-10-2011","","Interactive/Background","14:22:00, 06-10-2011","2","SYSTEM","Every 1 hour(s) from 02:22 for 24 hour(s) every day, starting 06-09-2011","d:\scripts\robocopy.exe source d:\dir /copyall /mir /purge /r:2 /w:3 /xf program.exe /xd archive /np /log+:d:\scripts\logs\robocopy.log","d:\scripts","N/A","Enabled","Hourly ","02:22:00","06-09-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","1 Hour(s)","None","24 Hour(s): 0 Minute(s)","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
