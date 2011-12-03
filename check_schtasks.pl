@@ -33,7 +33,7 @@ my %ERRORS = (
     'WARNING'   => 1,
     'CRITICAL'  => 2,
     'UNKNOWN'   => 3,
-    'DEPENDENT' => 4
+    'DEPENDENT' => 4,
 );
 
 $version = '1.1';
@@ -43,7 +43,7 @@ GetOptions(
     'c|checknow'  => \$checknow,
     'h|help|?'    => \$help,
     'V|version'   => \$revision,
-    'e|exclude=i' => \%exclusions,
+    'e|exclude=s%' => sub{ push ( @{$exclusions{$_[1]}}, $_[2] ) },
 );
 
 # get version info if requested and exit
@@ -66,8 +66,6 @@ pod2usage( -verbose => 1, -noperldoc => 1, ) unless $checknow;
 # /fo csv: dump the list as in csv format
 # /v: verbose
 # open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
-open( my $fh, "<", "/home/j.asenjo/scripts/schtasks.csv" )
-  or die "couldn't exec schtasks: $!\n";
 
 # create a Text::CSV_XS object
 my $csv = Text::CSV_XS->new();
@@ -77,49 +75,49 @@ my $csv = Text::CSV_XS->new();
 # Because in windows 2008 the task scheduler has been revamped, there are a lot of new scheduled jobs that are not important, so I
 # filter them in the next if statements
 
-while ( my $line = <$fh> ) {
+while ( my $line = <DATA> ) {
     chomp $line;
     last if $line =~ /^INFO: There are no scheduled tasks.*$/;
 
     if ( $csv->parse($line) ) {
         my @columns = $csv->fields();
-        next if $columns[1] eq "TaskName";    # skip the header
-        next
-          if $columns[1] eq "\\Microsoft\\Windows\\Defrag\\ManualDefrag"
-        ;    # if someone starts defrag manually and it fails don't bug me
-        next
-          if $columns[1] eq
-"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Server\\ServerCeipAssistant"
-        ;    # WTF?
-        next
-          if $columns[1] eq
-              "\\Microsoft\\Windows\\NetworkAccessProtection\\NAPStatus UI"
-        ;    # WTF?
-        next
-          if $columns[1] eq
-"\\Microsoft\\Windows\\Customer Experience Improvement Program\\Consolidator"
-        ;    # WTF?
-        next
-          if $columns[1] eq
-              "\\Microsoft\\Windows\\CertificateServicesClient\\UserTask-Roam";
-        next
-          if $columns[1] eq
-              "\\Microsoft\\Windows\\CertificateServicesClient\\UserTask";
-        next if $columns[3] eq "Disabled"; # skip if 4th column is 'disabled'
-        next if $columns[2] eq "Disabled"; # skip if next run time is 'disabled'
-        next if $columns[3] eq "Running";  # skip if the task is running now
-        next
-          if $columns[18] eq
-              "At logon time";    # skip if 19th colum is 'At logon time"
-        next if $columns[5] eq "N/A";    # skip if last run time is empty
-                                         # uncomment to debug
-              # print "$columns[1]\t$columns[6]\t$columns[8]\n";
 
-# if last result is other than 0, save taskname and last result in the %lastresult_of
+        # Skip lines
+
+        # skip the header
+        next if $columns[1] eq "TaskName";
+
+        # skip if next run time is 'disabled'
+        next if $columns[2] eq "Disabled"; 
+
+        # skip if status column is 'disabled'
+        next if $columns[3] eq "Disabled"; 
+
+        # skip if the task is running now
+        next if $columns[3] eq "Running";  
+
+        # skip if last run time is empty
+        next if $columns[5] eq "N/A";    
+
+        # skip if 19th colum is 'At logon time"
+        next if $columns[18] eq "At logon time";    
+
+        # process the cli exclussions now
+        # These are stored in a hash containing array references as values, so
+        # first we check the value is an array ref, then we skip the line if
+        # the exclusion matches with $columns[1] and $columns[6]. Thanks to
+        # perlmonk Eliya for helping me out with this: http://www.perlmonks.org/?node_id=941495
+        if ( $columns[6] != 0 ) {
+            if ( ref ( my $excl = $exclusions{$columns[1]} ) eq "ARRAY") {
+                next if grep $_ == $columns[6], @$excl;
+                }
+            }
+
+        # if last result is other than 0, save taskname and last result
+        # in the %lastresult_of
         if ( $columns[6] != 0 ) {
             $lastresult_of{ $columns[1] } = $columns[6];
         }
-
     }
 }
 
@@ -128,55 +126,12 @@ if ( scalar keys %lastresult_of == 0 ) {
     print "0K: All scheduled tasks seem to have run fine\n";
     exit $ERRORS{OK};
 }
-
-# execute sub comp_hashes if exclusions are seen in the cli
-elsif ( scalar keys %exclusions > 0 ) {
-    comp_hashes();
-
-    # same as earlier, if hash is empty, no errors
-    if ( scalar keys %lastresult_excl == 0 ) {
-        print "0K: All scheduled tasks seem to have run fine\n";
-        exit $ERRORS{OK};
-    }
-    else {
-        while ( my ( $key, $value ) = each(%lastresult_excl) ) {
-            print
-              "WARNING: scheduled task [$key] finished with error [$value]\n";
-            exit $ERRORS{WARNING};
-        }
-    }
-}
-
-# finally, if %lastresult_of is not empty, get the warnings
 else {
     while ( my ( $key, $value ) = each(%lastresult_of) ) {
         print "WARNING: scheduled task [$key] finished with error [$value]\n";
-        exit $ERRORS{WARNING};
     }
+    exit $ERRORS{WARNING};
 }
-
-#===  FUNCTION  ================================================================
-#         NAME:  comp_hashes
-#      PURPOSE:  compare %lastresult_of with %exclusions, create new hash with elements not in both
-#   PARAMETERS:  none
-#      RETURNS:  new hash %lastresult_excl if no matches are found
-#  DESCRIPTION:  if no matches are found between the %lastresult_of and
-#                %exclusions hashes, fill new hash %lastresult_excl with
-#                elements that did *not* match
-#       THROWS:  no exceptions
-#     COMMENTS:  this seems a bit awkward, but it works
-#     SEE ALSO:  n/a
-#===============================================================================
-sub comp_hashes {
-    while ( my ( $key, $value ) = each(%lastresult_of) ) {
-        if ( exists $exclusions{$key} and $value == $exclusions{$key} ) {
-            next;
-        }
-        else {
-            $lastresult_excl{$key} = $value;
-        }
-    }
-}    # ----------  end of subroutine comp_hashes  ----------
 
 =head1 NAME
 
@@ -242,3 +197,18 @@ check_schtasks -c --exclude "job with spaces in it"=2
 
 natxo asenjo in his spare time
 
+=cut
+
+__DATA__
+"HostName","TaskName","Next Run Time","Status","Logon Mode","Last Run Time","Last Result","Creator","Schedule","Task To Run","Start In","Comment","Scheduled Task State","Scheduled Type","Start Time","Start Date","End Date","Days","Months","Run As User","Delete Task If Not Rescheduled","Stop Task If Runs X Hours and X Mins","Repeat: Every","Repeat: Until: Time","Repeat: Until: Duration","Repeat: Stop If Still Running","Idle Time","Power Management"
+"host","Defrag C","04:00:00, 09-10-2011","","Interactive/Background","04:00:00, 02-10-2011","0","SYSTEM","At 04:00 every Sun of every week, starting 26-05-2010","C:\WINDOWS\system32\defrag.exe c:","C:\WINDOWS\system32","N/A","Enabled","Weekly","04:00:00","26-05-2010","N/A","SUNDAY","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","DkTknSrv","05:00:00, 07-10-2011","","Interactive/Background","05:00:00, 06-10-2011","0","SYSTEM","At 05:00 every day, starting 05-05-2011","d:\scripts\DkTknSrv\DkTknSrv.cmd ","d:\scripts\DkTknSrv","N/A","Enabled","Daily ","05:00:00","05-05-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","logoff disconnected sessions","15:32:00, 06-10-2011","","Interactive/Background","14:32:00, 06-10-2011","0","SYSTEM","Every 1 hour(s) from 21:32 for 24 hour(s) every day, starting 16-02-2011","d:\perl\bin\perl.exe d:\scripts\logoffdisc.pl","d:\perl\bin","N/A","Enabled","Hourly ","21:32:00","16-02-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","1 Hour(s)","None","24 Hour(s): 0 Minute(s)","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","Memory Optimization Schedule","Disabled","","Background only","Never","0","SYSTEM","Disabled","C:\Program Files\Citrix\Server Resource Management\Memory Optimization Management\Program\CtxBace.exe -optimize","N/A","N/A","Disabled","At system start up","At system start up","01-01-2001","N/A","N/A","N/A","NT AUTHORITY\SYSTEM","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","Memory Optimization Schedule","Disabled","","Background only","Never","0","SYSTEM","Disabled","C:\Program Files\Citrix\Server Resource Management\Memory Optimization Management\Program\CtxBace.exe -optimize","N/A","N/A","Disabled","Hourly ","03:00:00","01-01-1999","N/A","Everyday","N/A","NT AUTHORITY\SYSTEM","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","perfmon-srv","02:00:00, 07-10-2011","","Interactive/Background","02:00:09, 06-10-2011","0","SYSTEM","At 02:00 every day, starting 02-07-2010","d:\scripts\startup\termserv.cmd ","d:\scripts\startup","N/A","Enabled","Daily ","02:00:00","02-07-2010","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","blabla","At system start up","","Interactive/Background","01:36:17, 06-10-2011","0","administrator","Run at system startup","d:\scripts\bla\prog.vbs ","d:\scripts\bla","N/A","Enabled","At system start up","At system start up","02-02-2010","N/A","N/A","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","robocopy dir","15:22:00, 06-10-2011","","Interactive/Background","14:22:00, 06-10-2011","3","SYSTEM","Every 1 hour(s) from 02:22 for 24 hour(s) every day, starting 06-09-2011","d:\scripts\robocopy.exe source d:\dir /copyall /mir /purge /r:2 /w:3 /xf program.exe /xd archive /np /log+:d:\scripts\logs\robocopy.log","d:\scripts","N/A","Enabled","Hourly ","02:22:00","06-09-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","1 Hour(s)","None","24 Hour(s): 0 Minute(s)","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","shutdown","01:30:00, 07-10-2011","","Interactive/Background","01:30:00, 06-10-2011","0","SYSTEM","At 01:30 every day, starting 04-12-2009","d:\scripts\shutdown\shutdown.cmd ","d:\scripts\shutdown","N/A","Enabled","Daily ","01:30:00","04-12-2009","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","startup","At system start up","","Interactive/Background","01:36:10, 06-10-2011","0","SYSTEM","Run at system startup","d:\Scripts\Startup\startup.cmd ","d:\Scripts\Startup","N/A","Enabled","At system start up","At system start up","04-12-2009","N/A","N/A","N/A","domain\SVC.Scheduler","Disabled","72:0","Disabled","Disabled","Disabled","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
+"host","robocopy dir","15:22:00, 06-10-2011","","Interactive/Background","14:22:00, 06-10-2011","2","SYSTEM","Every 1 hour(s) from 02:22 for 24 hour(s) every day, starting 06-09-2011","d:\scripts\robocopy.exe source d:\dir /copyall /mir /purge /r:2 /w:3 /xf program.exe /xd archive /np /log+:d:\scripts\logs\robocopy.log","d:\scripts","N/A","Enabled","Hourly ","02:22:00","06-09-2011","N/A","Everyday","N/A","domain\SVC.Scheduler","Disabled","72:0","1 Hour(s)","None","24 Hour(s): 0 Minute(s)","Disabled","Disabled","No Start On Batteries, Stop On Battery Mode"
