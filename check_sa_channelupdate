@@ -6,14 +6,17 @@ use Mail::SpamAssassin;
 use Net::DNS;
 
 # variables
-my ( $sa_version, $rev_sa_version, $SA, $update_dir, $version_on_disk,
-    $LOCAL_STATE_DIR, $resolver, $query, $version_dns, $sa_channel );
+my (
+    $sa_version,      $rev_sa_version,  $SA,       $update_dir,
+    $version_on_disk, $LOCAL_STATE_DIR, $resolver, $query,
+    $version_dns,     $sa_channel
+);
 
 # get the SpamAssassin version from the Perl module
-$sa_version =  Mail::SpamAssassin::Version();
+$sa_version = Mail::SpamAssassin::Version();
 
 # reverse this number. We will need it for a txt forward query later
-$rev_sa_version = join(".", reverse split(/\./, $sa_version) ) ;
+$rev_sa_version = join( ".", reverse split( /\./, $sa_version ) );
 
 # sa channel we want to monitor
 $sa_channel = "updates.spamassassin.org";
@@ -21,10 +24,7 @@ $sa_channel = "updates.spamassassin.org";
 # get the local state dir update path
 $LOCAL_STATE_DIR = '/var/lib/spamassassin';
 
-$SA = Mail::SpamAssassin->new( {
-        LOCAL_STATE_DIR => $LOCAL_STATE_DIR,
-    }
-);
+$SA = Mail::SpamAssassin->new( { LOCAL_STATE_DIR => $LOCAL_STATE_DIR, } );
 
 $update_dir = $SA->sed_path('__local_state_dir__/__version__');
 
@@ -32,8 +32,8 @@ $update_dir = $SA->sed_path('__local_state_dir__/__version__');
 # save the version in $version_on_disk
 
 if ( -e "$update_dir/updates_spamassassin_org.cf" ) {
-    open (CF, "$update_dir/updates_spamassassin_org.cf" ) or die "$!\n";
-    while (<CF> ) {
+    open( CF, "$update_dir/updates_spamassassin_org.cf" ) or die "$!\n";
+    while (<CF>) {
         last unless /^# UPDATE\s+[A-Za-z]+\s+(\S+)/;
         $version_on_disk = $1;
     }
@@ -41,24 +41,26 @@ if ( -e "$update_dir/updates_spamassassin_org.cf" ) {
 
 $resolver = Net::DNS::Resolver->new;
 
-$query = $resolver->query("$rev_sa_version.$sa_channel", 'txt');
+$query = $resolver->query( "$rev_sa_version.$sa_channel", 'txt' );
 
-if ( $query ) {
+if ($query) {
     for my $rr ( $query->answer ) {
         $version_dns = $rr->txtdata;
     }
 }
 else {
-    warn "WARNING: dns query for for $rev_sa_version.$sa_channel returns ", $resolver->errorstring, "\n";
+    warn "WARNING: dns query for for $rev_sa_version.$sa_channel returns ",
+      $resolver->errorstring, "\n";
     exit 1;
 }
 
-
 if ( "$version_on_disk" >= "$version_dns" ) {
-    print "OK: the $sa_channel version on disk is up to date: $version_on_disk\n";
+    print
+      "OK: the $sa_channel version on disk is up to date: $version_on_disk\n";
     exit 0;
 }
 else {
-    print "WARNING: there is a newer version available for SpamAssassin $sa_channel rules (on disk version is $version_on_disk, new version is $version_dns. Run sa-update -D as root to upgrade your SpamAssassin channel version.\n";
+    print
+"WARNING: there is a newer version available for SpamAssassin $sa_channel rules (on disk version is $version_on_disk, new version is $version_dns. Run sa-update -D as root to upgrade your SpamAssassin channel version.\n";
     exit 1;
 }
