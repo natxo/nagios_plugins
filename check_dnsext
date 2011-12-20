@@ -81,8 +81,10 @@ my $query = $resolver->query( $host, $type );
 # uncomment the Data::Dumper lines to inspect the result for a new type rr
 if ($query) {
     for my $rr ( $query->answer ) {
-#        use Data::Dumper;
-#        print Dumper $rr;
+    next unless $rr->type =~ m/^$type$/i;
+        #use Data::Dumper;
+        # $Data::Dumper::Useqq = 1;
+        # print Dumper $rr;
         push( @query_result, $rr->exchange ) if $type =~ /^mx$/i;
         push( @query_result, $rr->target )   if $type =~ /^srv$/i;
         push( @query_result, $rr->address ) if $type =~ /^a$/i;
@@ -94,7 +96,7 @@ if ($query) {
 }
 else {
     warn "CRITICAL: dns $type RR query for $host returns ",
-        $resolver->errorstring,  "\n";
+        $resolver->errorstring, ", we wanted @exp_address\n";
     exit 2;
 }
 
@@ -111,7 +113,7 @@ if ( $comparison->perm( \@query_result, \@exp_address ) ) {
     exit 0;
 }
 else {
-    print "WARNING: dns $type RR query for $host returns @query_result\n";
+    print "WARNING: dns $type RR query for $host returns @query_result but we expected @exp_address\n";
     exit 1;
 }
 
