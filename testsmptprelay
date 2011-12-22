@@ -5,7 +5,7 @@
 #
 #        USAGE:  ./kk.pl  
 #
-#  DESCRIPTION:  
+#  DESCRIPTION: test a smtp server for open relaying 
 #
 #      OPTIONS:  ---
 # REQUIREMENTS:  ---
