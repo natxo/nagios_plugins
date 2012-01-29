@@ -145,7 +145,7 @@ if ( defined $file_is_binary ) {
 }
 elsif ( defined $file_is_text ) {
     dbg("no compression found, proceeding with the rest");
-    _days_warranty_left();
+    _days_warranty_left($content);
     _get_days_left(@days_left);
     _get_crit_warning($days_left);
 }
@@ -184,9 +184,7 @@ sub _days_warranty_left {
     # get the rows
     dbg("get rows in the html tables");
     for my $ts ( $te->tables ) {
-
         for my $row_ref ( $ts->rows ) {
-
             # store the days left value in global @days_left
             dbg("save the value in the days left cell in \@days_left");
             push @days_left, $row_ref->[4];
