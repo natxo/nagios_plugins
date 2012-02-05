@@ -1,0 +1,184 @@
+#!/usr/bin/perl 
+#===============================================================================
+#
+#         FILE: check_knmi_waarschuwing.pl
+#
+#        USAGE: ./check_knmi_waarschuwing.pl  
+#
+#  DESCRIPTION: nagios plugin to check if we have the latest version of the
+#               mediawiki software in our webserver
+#
+#      OPTIONS: ---
+# REQUIREMENTS: WWW::Mechanize
+#         BUGS: ---
+#        NOTES: ---
+#       AUTHOR: Natxo Asenjo, nasenjo@asenjo.nl
+#      COMPANY: 
+#      VERSION: 1.0
+#      CREATED: 02/04/2012 02:16:36 PM
+#     REVISION: ---
+#===============================================================================
+
+use strict;
+use warnings;
+
+# load the libwww module
+use LWP;
+
+# load the Getopt::Long module for cli arguments
+use Getopt::Long;
+
+#-------------------------------------------------------------------------------
+# GLOBAL VARIABLES
+#-------------------------------------------------------------------------------
+# save x-meta-generator header with version info
+my $header = undef ;  
+
+# mediawiki url te checken
+my $siteurl = undef ; # this has to be a cli argument
+
+# placeholder of the mediawiki version on the site
+my $mw_site_version; 
+
+# url download mediawiki software
+my $mw_dl_url = "http://www.mediawiki.org/wiki/Download";
+
+# placeholder of the latest mediawiki version from $mw_dl_url
+my $mw_latest_version;
+
+my $debug = undef;
+
+my $help = undef;
+my $version = undef;
+
+
+#-------------------------------------------------------------------------------
+# process cli arguments
+#-------------------------------------------------------------------------------
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+GetOptions(
+    'H|hostname=s' => \$siteurl,
+    'h|help|?'     => \$help,
+    'v|verbose'    => \$debug,
+    'V|version'    => \$version,
+);
+
+# parse the cli args. $siteurl is compulsory
+if ( !defined $siteurl ) {
+    print "Please enter a valid url.\n";
+    exit 1
+}
+
+
+#-------------------------------------------------------------------------------
+# start the check
+#-------------------------------------------------------------------------------
+# create a user agent object to show in the webserver logs
+my $ua = LWP::UserAgent->new;
+$ua->agent("nagios check_mediawiki_version/0.1 http://myuseragent.com" ) ;
+
+# do not wait for ever, after 20 seconds give up
+$ua->timeout(20);
+
+if ( defined $debug ) {
+    $ua->show_progress("true");
+}
+
+# get version installed mediawiki
+my $response = $ua->get($siteurl) ;
+
+# if the web request is succesful, proceed with check. Else exit with warning.
+if ( $response->is_success ) {
+#    use Data::Dumper;
+#    print Dumper $response;
+    $header = $response->header("x-meta-generator");
+
+    die "could not get header\n" unless defined $header;
+
+    # if we do not find the string mediawiki, then it is not a mediawiki site
+    if ( $header =~ m/mediawiki.*$/i ) {
+        print "Version Mediawiki on $siteurl is: $header\n" if defined $debug;
+        if ( $header =~ m/mediawiki (.*)$/i ) {
+            $mw_site_version = $1;
+            print "mediawiki site version: |$mw_site_version|\n" if defined
+                $debug;
+        }
+    }
+    else {
+        print "WARNING: This does not look like a mediawiki site\n";
+        print "$header\n" if defined $header ;
+        exit 1;
+    }
+}
+else {
+    print "WARNING: we got: ", $response->status_line, " when requesting $siteurl.
+    Something went wrong fetching it.\n";
+    exit 1;
+}
+
+# we use now Mechanize because it is so easy to find links with it ...
+use WWW::Mechanize;
+
+# create new mechanize object without autocheck
+my $mech = WWW::Mechanize->new( autocheck => 0,);
+
+# set another user-agent, mediawiki.org blocks libwww-perl (if they think this
+# helps ...)
+$mech->agent ( "whatever you want" );
+
+# show debugging if verbose is on
+if ( defined $debug ) {
+    $mech->show_progress(1);
+}
+
+# get the page
+$mech->get( $mw_dl_url) ;
+
+if ($mech->success) {
+    # get the link matching the string 'Donwload'
+    # in $latest we get an array reference, we dereference it in $latest_url
+    my $latest = $mech->find_link( text_regex => qr/Download/ );
+    
+    my $latest_url = $latest->url;
+    
+    print "Mediawiki latest version link is |$latest_url|\n" if defined $debug;
+    
+    # We are just interested in the version number, so discard the rest and save
+    # it in $1
+    if ( $latest_url =~ m/.*mediawiki-(.*)\.tar\.gz/ ) {
+        $mw_latest_version = $1;
+    }
+    
+    print "Latest version of Mediawiki is: $mw_latest_version.\n"
+        if defined $debug;
+}
+else {
+    print "WARNING: webserver $mw_dl_url returned ", $mech->status, "\n";
+    exit 1;
+}
+
+# now compare both versions. Unless they are equal, warn
+
+if ( $mw_site_version eq $mw_latest_version ) {
+    print "OK: mediawiki site version is up to date ($mw_site_version)\n";
+    exit 0;
+}
+else {
+    print "WARNING: mediawiki latest version is $mw_latest_version, but our site version is $mw_site_version\n";
+    exit 1;
+}
+
+# dump site to a file
+# my $file = "/home/j.asenjo/tmp/dumpknmi";
+
+#my $response = $ua->get($url,
+#                        ':content_file' => $file,
+#                    );
+
+#if ($response->is_success) {
+#    print $response->code, "\n";;
+#}
+#else {
+#    print $response->code, "\n";;
+#    print $response->content;
+#}
