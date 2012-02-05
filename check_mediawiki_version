@@ -3,7 +3,7 @@
 #
 #         FILE: check_knmi_waarschuwing.pl
 #
-#        USAGE: ./check_knmi_waarschuwing.pl  
+#        USAGE: ./check_knmi_waarschuwing.pl
 #
 #  DESCRIPTION: nagios plugin to check if we have the latest version of the
 #               mediawiki software in our webserver
@@ -13,7 +13,7 @@
 #         BUGS: ---
 #        NOTES: ---
 #       AUTHOR: Natxo Asenjo, nasenjo@asenjo.nl
-#      COMPANY: 
+#      COMPANY:
 #      VERSION: 1.0
 #      CREATED: 02/04/2012 02:16:36 PM
 #     REVISION: ---
@@ -28,17 +28,20 @@ use LWP;
 # load the Getopt::Long module for cli arguments
 use Getopt::Long;
 
+# load the Pod::Usage module for automatic documentation
+use Pod::Usage;
+
 #-------------------------------------------------------------------------------
 # GLOBAL VARIABLES
 #-------------------------------------------------------------------------------
 # save x-meta-generator header with version info
-my $header = undef ;  
+my $header = undef;
 
 # mediawiki url te checken
-my $siteurl = undef ; # this has to be a cli argument
+my $siteurl = undef;    # this has to be a cli argument
 
 # placeholder of the mediawiki version on the site
-my $mw_site_version; 
+my $mw_site_version;
 
 # url download mediawiki software
 my $mw_dl_url = "http://www.mediawiki.org/wiki/Download";
@@ -48,9 +51,8 @@ my $mw_latest_version;
 
 my $debug = undef;
 
-my $help = undef;
+my $help    = undef;
 my $version = undef;
-
 
 #-------------------------------------------------------------------------------
 # process cli arguments
@@ -63,19 +65,16 @@ GetOptions(
     'V|version'    => \$version,
 );
 
-# parse the cli args. $siteurl is compulsory
-if ( !defined $siteurl ) {
-    print "Please enter a valid url.\n";
-    exit 1
-}
-
+# if help chosen, display it
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
+pod2usage() unless $siteurl;
 
 #-------------------------------------------------------------------------------
 # start the check
 #-------------------------------------------------------------------------------
 # create a user agent object to show in the webserver logs
 my $ua = LWP::UserAgent->new;
-$ua->agent("nagios check_mediawiki_version/0.1 http://myuseragent.com" ) ;
+$ua->agent("nagios check_mediawiki_version/0.1 http://myuseragent.com");
 
 # do not wait for ever, after 20 seconds give up
 $ua->timeout(20);
@@ -85,12 +84,13 @@ if ( defined $debug ) {
 }
 
 # get version installed mediawiki
-my $response = $ua->get($siteurl) ;
+my $response = $ua->get($siteurl);
 
 # if the web request is succesful, proceed with check. Else exit with warning.
 if ( $response->is_success ) {
-#    use Data::Dumper;
-#    print Dumper $response;
+
+    #    use Data::Dumper;
+    #    print Dumper $response;
     $header = $response->header("x-meta-generator");
 
     die "could not get header\n" unless defined $header;
@@ -100,18 +100,19 @@ if ( $response->is_success ) {
         print "Version Mediawiki on $siteurl is: $header\n" if defined $debug;
         if ( $header =~ m/mediawiki (.*)$/i ) {
             $mw_site_version = $1;
-            print "mediawiki site version: |$mw_site_version|\n" if defined
-                $debug;
+            print "mediawiki site version: |$mw_site_version|\n"
+              if defined $debug;
         }
     }
     else {
         print "WARNING: This does not look like a mediawiki site\n";
-        print "$header\n" if defined $header ;
+        print "$header\n" if defined $header;
         exit 1;
     }
 }
 else {
-    print "WARNING: we got: ", $response->status_line, " when requesting $siteurl.
+    print "WARNING: we got: ", $response->status_line,
+      " when requesting $siteurl.
     Something went wrong fetching it.\n";
     exit 1;
 }
@@ -120,11 +121,11 @@ else {
 use WWW::Mechanize;
 
 # create new mechanize object without autocheck
-my $mech = WWW::Mechanize->new( autocheck => 0,);
+my $mech = WWW::Mechanize->new( autocheck => 0, );
 
 # set another user-agent, mediawiki.org blocks libwww-perl (if they think this
 # helps ...)
-$mech->agent ( "whatever you want" );
+$mech->agent("whatever you want");
 
 # show debugging if verbose is on
 if ( defined $debug ) {
@@ -132,25 +133,26 @@ if ( defined $debug ) {
 }
 
 # get the page
-$mech->get( $mw_dl_url) ;
+$mech->get($mw_dl_url);
 
-if ($mech->success) {
+if ( $mech->success ) {
+
     # get the link matching the string 'Donwload'
     # in $latest we get an array reference, we dereference it in $latest_url
     my $latest = $mech->find_link( text_regex => qr/Download/ );
-    
+
     my $latest_url = $latest->url;
-    
+
     print "Mediawiki latest version link is |$latest_url|\n" if defined $debug;
-    
+
     # We are just interested in the version number, so discard the rest and save
     # it in $1
     if ( $latest_url =~ m/.*mediawiki-(.*)\.tar\.gz/ ) {
         $mw_latest_version = $1;
     }
-    
+
     print "Latest version of Mediawiki is: $mw_latest_version.\n"
-        if defined $debug;
+      if defined $debug;
 }
 else {
     print "WARNING: webserver $mw_dl_url returned ", $mech->status, "\n";
@@ -164,21 +166,110 @@ if ( $mw_site_version eq $mw_latest_version ) {
     exit 0;
 }
 else {
-    print "WARNING: mediawiki latest version is $mw_latest_version, but our site version is $mw_site_version\n";
+    print
+"WARNING: mediawiki latest version is $mw_latest_version, but our site version is $mw_site_version\n";
     exit 1;
 }
 
-# dump site to a file
-# my $file = "/home/j.asenjo/tmp/dumpknmi";
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#  Application Documentation
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-#my $response = $ua->get($url,
-#                        ':content_file' => $file,
-#                    );
+=head1 NAME
 
-#if ($response->is_success) {
-#    print $response->code, "\n";;
-#}
-#else {
-#    print $response->code, "\n";;
-#    print $response->content;
-#}
+check_mediawiki_version - check if mediawiki software is up to date
+
+=head1 VERSION
+
+This documentation refers to <check_mediawiki_version> version 0.1
+
+=head1 USAGE
+
+check_mediawiki_version -H http://www.example.com [-v true]
+
+=head1 REQUIRED ARGUMENTS
+
+-H|--hostname
+web address of site hosting the mediawiki site;
+
+=head1 OPTIONS
+
+-H|--hostname
+web address of site hosting the mediawiki site;
+
+-v|--verbose
+standard this setting is 'false'. If 'true', then one can see extra debugging
+info of the http request;
+
+-h|--help
+this text;
+
+=head1 DESCRIPTION
+
+Nagios check to monitor if the mediawiki software version on a site is the
+latest production version of the mediawiki distribution.
+
+The check compares the x-meta-generator header of the GET http request and
+compares its result to the download link name in the mediawiki.org site.
+
+=head1 DIAGNOSTICS
+
+This check can fail because of network problems (no connectivity to the
+internet to check the mediawiki.org version, for instance). Use the --verbose
+true parameter to get better information if it fails.
+
+This check does not (yet) work behind a proxy server. Patches welcome!
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+Place the plugin in the plugin directory of the nagios server (usually,
+/usr/local/nagios/libexec/), make the nagios user its owner and change the
+permissions to 775.
+
+=head1 DEPENDENCIES
+
+This plugin requires the WWW::Mechanize module. This is a very common module,
+so chances are it is already installed on your system.
+
+On a (recent) Redhat based system, you can install it using yum if you enable
+the repoforge yum repository:
+
+# yum install perl-WWW-Mechanize
+
+On a debian based system the package is called libwww-mechanize-perl and you
+use apt-get so:
+
+# apt-get install libwww-mechanize-perl
+
+On other flavours of unix, check your package manager documentation or use
+something like perlbrew or, as a last resort, the cpan shell, to install it.
+
+=head1 INCOMPATIBILITIES
+
+None known yet.
+
+=head1 BUGS AND LIMITATIONS
+
+This check assumes that the download link of the mediawiki.org site is
+L<http://www.mediawiki.org/wiki/Download> and that the mediawiki sites will
+continue to use an x-meta-generator header with the version used by the sites.
+If those things change, the plugin will fail miserably.
+
+This check does not work for mediawiki sites using authentication (yet).
+It should not be too hard to add it, but I have not implemented it yet.
+
+=head1 AUTHOR
+
+<Natxo Asenjo>  (<natxo@asenjo.nl_removethis>)
+
+=head1 LICENCE AND COPYRIGHT
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself. See perldoc perlartistic.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+=cut
+
