@@ -34,6 +34,10 @@ use Pod::Usage;
 #-------------------------------------------------------------------------------
 # GLOBAL VARIABLES
 #-------------------------------------------------------------------------------
+
+# check user-agent
+my $agent = "nagios check_mediawiki_version/0.1 http://myuseragent.com";
+
 # save x-meta-generator header with version info
 my $header = undef;
 
@@ -85,7 +89,7 @@ pod2usage() unless $siteurl;
 #-------------------------------------------------------------------------------
 # create a user agent object to show in the webserver logs
 my $ua = LWP::UserAgent->new;
-$ua->agent("nagios check_mediawiki_version/0.1 http://myuseragent.com");
+$ua->agent( $agent );
 
 # do not wait for ever, after 20 seconds give up
 $ua->timeout(20);
@@ -142,7 +146,7 @@ my $mech = WWW::Mechanize->new( autocheck => 0, );
 
 # set another user-agent, mediawiki.org blocks libwww-perl (if they think this
 # helps ...)
-$mech->agent("whatever you want");
+$mech->agent( $agent );
 
 # show debugging if verbose is on
 if ( defined $debug ) {
