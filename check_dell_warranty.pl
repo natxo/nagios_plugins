@@ -22,6 +22,7 @@ use strict;
 use warnings;
 
 use WWW::Mechanize;
+use HTTP::Cookies;
 use File::Temp;
 use Getopt::Long;
 use Pod::Usage;
@@ -35,7 +36,7 @@ my %ERRORS = (
 );
 my $file_is_text   = undef;
 my $file_is_binary = undef;
-my $debug          = 0;
+my $debug          = undef;
 my $help           = 0;
 my $host           = 0;
 my $tag            = undef;
@@ -107,8 +108,20 @@ dbg(
 );
 my $content = File::Temp->new();
 
+# create a cookiejar object, no cookies, no info from dell
+my $cookiejar = HTTP::Cookies->new();
+
+# set the cookie (info thanks to view cookies extension of Firefox
+# we need the $tag 
+$cookiejar->set_cookie(0,'OLRProduct',"OLRProduct=$tag|",'/','dell.com',80,0,0,86400,0);
+
 # define the mechanize object
-my $mech = WWW::Mechanize->new( autocheck => 1 );
+my $mech = WWW::Mechanize->new( autocheck => 1, cookie_jar => $cookiejar, );
+
+# if $debug show extra info
+if ( defined ($debug) ) {
+    $mech->show_progress(1);
+}
 
 # set the user agent that will show in dell's logs
 $mech->agent(
@@ -116,8 +129,7 @@ $mech->agent(
 );
 
 my $url =
-"http://support.dell.com/support/topics/global.aspx/support/my_systems_info/details?c=us&l=en&s=gen&ServiceTag="
-  . $tag;
+"http://www.dell.com/support/troubleshooting/us/en/04/TroubleShooting/Display_Warranty_Tab?name=TroubleShooting_WarrantyTab";
 
 dbg("site is $url");
 
@@ -150,7 +162,7 @@ elsif ( defined $file_is_text ) {
     _get_crit_warning($days_left);
 }
 
-# get the table with headers: Description, Provider, Warranty, Start,
+# get the table with headers: Services, Provider, Warranty, Start,
 # End, Days. These are a list of regular expressions per header, so the
 # first header can be 'Description of the Warranty' but you shorten it
 # to 'Description'. Every header corresponds with a column in the table. I
@@ -174,7 +186,7 @@ elsif ( defined $file_is_text ) {
 sub _days_warranty_left {
     my ($content) = @_;
     use HTML::TableExtract;
-    my @headers = qw(Description Provider Start End Days);
+    my @headers = qw(Services Provider Start End Days);
     my $te = HTML::TableExtract->new( headers => \@headers );
 
     #parse the $content
