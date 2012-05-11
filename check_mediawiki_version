@@ -14,7 +14,7 @@
 #        NOTES: ---
 #       AUTHOR: Natxo Asenjo, nasenjo@asenjo.nl
 #      COMPANY:
-#      VERSION: 0.1
+#      VERSION: 0.2
 #      CREATED: 02/04/2012 02:16:36 PM
 #     REVISION: ---
 #===============================================================================
@@ -221,7 +221,7 @@ web address of site hosting the mediawiki site;
 
 -n|--netloc
 hostname:port combination for webserver dns hostname. *NO* protocol (no
-http:// in it, just a simple or fully qualified name plus the port number.
+http:// in it), just a simple or fully qualified name plus the port number.
 
 -r|--realm
 authentication realm; this is case sensitive.
