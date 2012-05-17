@@ -185,9 +185,15 @@ elsif ( defined $file_is_text ) {
 #===============================================================================
 sub _days_warranty_left {
     my ($content) = @_;
+    my $te ;
     use HTML::TableExtract;
     my @headers = qw(Services Provider Start End Days);
-    my $te = HTML::TableExtract->new( headers => \@headers );
+    if ( defined $debug ) {
+        $te = HTML::TableExtract->new( headers => \@headers, debug => 2, );
+    }
+    else {
+        $te = HTML::TableExtract->new( headers => \@headers, );
+    }
 
     #parse the $content
     dbg("parsing the $content file");
@@ -474,4 +480,9 @@ get the table at depth 6 and count 0 because that one has the info we
 want
 
 my $te = HTML::TableExtract->new( depth => 6, count => 0);
+
+=head1 how to set a cookie using HTTP::Cookies
+
+L<http://stackoverflow.com/questions/2475362/how-can-i-use-perl-to-send-and-http-request-with-a-cookie/>
+
 =cut
