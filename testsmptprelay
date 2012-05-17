@@ -29,12 +29,12 @@ use Pod::Usage;
 
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
-    'h|host=s'    => \$host,
-    'f|from=s'    => \$from,
-    't|to=s'      => \$to,
-    'l|hello=s'   => \$helo,
-    'H|?|help' => \$help,
-    'd|debug'   => \$debug,
+    'h|host=s'      => \$host,
+    'f|from=s'      => \$from,
+    't|to=s'        => \$to,
+    'l|hello=s'     => \$helo,
+    'H|?|help'      => \$help,
+    'd|debug'       => \$debug,
 );
 
 pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
@@ -78,5 +78,7 @@ $smtp->quit();
 -t | --to       rcpt to address used
 
 -l | --hello    helo address used
+
+-d | --debug    print extra debugging info
 
 -H | --help | -?  this help message
