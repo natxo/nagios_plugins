@@ -15,8 +15,6 @@ use Pod::Usage;
 #-------------------------------------------------------------------------------
 # GLOBAL VARIABLES
 #-------------------------------------------------------------------------------
-
-# mediawiki url te checken
 my $hostname    = undef;    # this has to be a cli argument
 my $response    = undef;
 my $help        = undef;
@@ -60,6 +58,19 @@ else {
     exit 1;
 }
 
+
+#===  FUNCTION  ================================================================
+#         NAME: _get_wan_ip
+#      PURPOSE: get WAN ip of dd-wrt router
+#   PARAMETERS: none
+#      RETURNS: wan ip address
+#  DESCRIPTION: 
+#       THROWS: 
+#     COMMENTS: the wan ip is in this html code:
+#               <span id="wan_ipaddr">ipv4 address</span>
+#               so we we need the span tag with an wan_ipaddr id attribute
+#     SEE ALSO: n/a
+#===============================================================================
 sub _get_wan_ip {
 
     # parse the html $response file
@@ -68,7 +79,6 @@ sub _get_wan_ip {
 
     if ( my $div = $tree->look_down( _tag => "span", id => "wan_ipaddr" ) ) {
 
-        #print $div->as_text(), "\n";
         $wan_ip = $div->as_text();
         return $wan_ip;
     }
