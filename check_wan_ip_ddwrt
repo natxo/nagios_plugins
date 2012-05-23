@@ -17,10 +17,10 @@ use Pod::Usage;
 #-------------------------------------------------------------------------------
 
 # mediawiki url te checken
-my $hostname = undef;    # this has to be a cli argument
-my $response = undef;
-my $help    = undef;
-my $wan_ip  = undef;
+my $hostname    = undef;    # this has to be a cli argument
+my $response    = undef;
+my $help        = undef;
+my $wan_ip      = undef;
 my $expected_ip = undef;
 
 #-------------------------------------------------------------------------------
@@ -45,14 +45,13 @@ my $html = get "http://$hostname";
 # if fetch is successful, process html
 if ( defined $html ) {
     _get_wan_ip();
-    print $wan_ip, "\n";
     if ( $wan_ip eq $expected_ip ) {
         print "OK: our WAN ip is $wan_ip and we expected $expected_ip\n";
         exit 0;
     }
     else {
-        print 
-        "WARNING: our WAN ip has changed. We expected $expected_ip but got $wan_ip\n";
+        print
+"WARNING: our WAN ip has changed. We expected $expected_ip but got $wan_ip\n";
         exit 1;
     }
 }
@@ -62,21 +61,25 @@ else {
 }
 
 sub _get_wan_ip {
+
     # parse the html $response file
     use HTML::TreeBuilder;
     my $tree = HTML::TreeBuilder->new_from_content($html);
 
-    if ( my $div = $tree->look_down(_tag => "span", id => "wan_ipaddr")) {
+    if ( my $div = $tree->look_down( _tag => "span", id => "wan_ipaddr" ) ) {
+
         #print $div->as_text(), "\n";
         $wan_ip = $div->as_text();
         return $wan_ip;
     }
+
     # if we do not find the wan_ipaddr attr end with unknown
     else {
         print "UNKNOWN: something went wrong while parsing the html code\n";
         exit 3;
     }
 }
+
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 #  Application Documentation
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
