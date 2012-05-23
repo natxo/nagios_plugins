@@ -1,0 +1,173 @@
+#!/usr/bin/perl 
+
+use strict;
+use warnings;
+
+# load the libwww module
+use LWP::Simple;
+
+# load the Getopt::Long module for cli arguments
+use Getopt::Long;
+
+# load the Pod::Usage module for automatic documentation
+use Pod::Usage;
+
+#-------------------------------------------------------------------------------
+# GLOBAL VARIABLES
+#-------------------------------------------------------------------------------
+
+# mediawiki url te checken
+my $hostname = undef;    # this has to be a cli argument
+my $response = undef;
+my $help    = undef;
+my $wan_ip  = undef;
+my $expected_ip = undef;
+
+#-------------------------------------------------------------------------------
+# process cli arguments
+#-------------------------------------------------------------------------------
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+GetOptions(
+    'H|hostname=s'  => \$hostname,
+    'h|help|?'      => \$help,
+    'i|ipaddress=s' => \$expected_ip,
+);
+
+# if help chosen, display it
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
+
+# if no -H specified, show usage
+pod2usage() unless $hostname and $expected_ip;
+
+# fetch the site
+my $html = get "http://$hostname";
+
+# if fetch is successful, process html
+if ( defined $html ) {
+    _get_wan_ip();
+    print $wan_ip, "\n";
+    if ( $wan_ip eq $expected_ip ) {
+        print "OK: our WAN ip is $wan_ip and we expected $expected_ip\n";
+        exit 0;
+    }
+    else {
+        print 
+        "WARNING: our WAN ip has changed. We expected $expected_ip but got $wan_ip\n";
+        exit 1;
+    }
+}
+else {
+    print "WARNING: Something went wrong fetching it.\n";
+    exit 1;
+}
+
+sub _get_wan_ip {
+    # parse the html $response file
+    use HTML::TreeBuilder;
+    my $tree = HTML::TreeBuilder->new_from_content($html);
+
+    if ( my $div = $tree->look_down(_tag => "span", id => "wan_ipaddr")) {
+        #print $div->as_text(), "\n";
+        $wan_ip = $div->as_text();
+        return $wan_ip;
+    }
+    # if we do not find the wan_ipaddr attr end with unknown
+    else {
+        print "UNKNOWN: something went wrong while parsing the html code\n";
+        exit 3;
+    }
+}
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#  Application Documentation
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+=head1 NAME
+
+check_wan_ip_ddwrt - check WAN ip address of dd-wrt broadband routers
+
+=head1 VERSION
+
+This documentation refers to <check_wan_ip_ddwrt> version 0.1
+
+=head1 USAGE
+
+check_wan_ip_ddwrt -H host -i ip.add.re.ss
+
+=head1 REQUIRED ARGUMENTS
+
+-H|--hostname
+host name or LAN ip address of our dd-wrt router;
+
+-i|--ipaddress
+expected ip address we want to check.
+
+=head1 OPTIONS
+
+-H|--hostname
+host name or LAN ip address of our dd-wrt router;
+
+-i|--ipaddress
+expected ip address we want to check.
+
+-h|--help
+this text;
+
+=head1 DESCRIPTION
+
+Nagios check to monitor if the WAN ip address our dd-wrt router gets from our
+internet provider is the one we expect it to be. I need to know this to modify
+a DNS A record accordingly because I do not have a fixed ip address.
+
+The check retrieves the info web site from the router and parses it to
+retrieve its WAN ip.
+
+=head1 DIAGNOSTICS
+
+This check can fail because of network problems (no connectivity to the
+router) or because the router does not have a WAN ip address (internet
+provider problem).
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+Place the plugin in the plugin directory of the nagios server (usually,
+/usr/local/nagios/libexec/), make the nagios user its owner and change the
+permissions to 775.
+
+=head1 DEPENDENCIES
+
+This plugin requires the LWP::Simple and HTML::TreeBuilder modules.
+
+On a recent Redhat based system you can install it like this:
+# yum install perl-HTML-Tree
+
+On a debian based system the package is called libhtml-tree-perl and you
+use apt-get so:
+
+# apt-get install libhtml-tree-perl
+
+On other flavours of unix, check your package manager documentation or use
+something like perlbrew with cpanminus.
+
+=head1 INCOMPATIBILITIES
+
+None known yet.
+
+=head1 BUGS AND LIMITATIONS
+
+Plenty, patches welcome :-)
+
+=head1 AUTHOR
+
+<Natxo Asenjo>  (<natxo@asenjo.nl_removethis>)
+
+=head1 LICENCE AND COPYRIGHT
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself. See perldoc perlartistic.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+=cut
+
