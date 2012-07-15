@@ -62,9 +62,13 @@ print "Total ldap users: $ldap_users\n";
 
 use DBI;
 
-my $dbhost = "postgres.ipa.asenjo.nx";
+#my $dbhost = "localhost";
 
-my $dbh = DBI->connect("DBI:Pg:dbname=template1;host=$dbhost",'admin','');
+#my $dbh = DBI->connect("DBI:Pg:dbname=template1;host=$dbhost",'postgres','')
+#    or die DBI->errstr;
+
+my $dbh = DBI->connect("DBI:Pg:dbname=template1",'postgres','')
+    or die DBI->errstr;
 
 my $sth = $dbh->prepare("SELECT usename from pg_catalog.pg_user") ;
 
@@ -82,17 +86,44 @@ while ( my ($key, $value) = each ( %postgres_roles ) ) {
 }
 
 print "Total postgres roles: $postgres_users\n";
+print "Local user postgres included\n";
 
 for ( keys %postgres_roles) {
     unless ( exists $ldap_users{$_} ) {
-        print "$_: not found in ldap\n";
+        unless ( $_ eq "postgres" ) {
+            print "$_: not found in ldap, removing from the database\n";
+            _drop_role("$_");
+        }
         next;
     }
 }
 
 for ( keys %ldap_users) {
     unless ( exists $postgres_roles{$_} ) {
-        print "$_: not found in postgres\n";
+        print "$_: not found in postgres, creating role now\n";
+        if ( $_ =~ m/admin$/ ) {
+            system("/usr/bin/createuser $_ --superuser --createrole --createdb --inherit");
+            _admin_role("$_");
+        }
+        else {
+            system("/usr/bin/createuser $_ -D -S -R");
+        }
         next;
     }
 }
+
+sub _admin_role { 
+    my ( $admin ) = @_ ;
+    my $query = "alter group admins add user \"$admin\"";
+    my $sth = $dbh->prepare( $query );
+    $sth->execute or warn $sth->errstr;
+}
+
+sub _drop_role {
+    my ( $role ) = @_;
+    my $query = "drop role \"$role\"";
+    my $sth = $dbh->prepare( $query );
+    $sth->execute or warn $sth->errstr;
+}
+
+    
