@@ -254,11 +254,7 @@ sub _get_end_date {
             return $end_date;
         }
         # if the 2nd or 3rd result are 0, keep the first
-        elsif ( $_[1]  eq 0 )  {
-            $end_date = $_[0];
-            return $end_date;
-        }
-        elsif ( $_[2] eq 0 )  {
+        elsif ( $_[0] gt $_[1] )  {
             $end_date = $_[0];
             return $end_date;
         }
@@ -303,7 +299,7 @@ sub _is_end_date_defined {
 sub _from_text_to_datetime {
     # $end_date is in the format mm/dd/yyyy, so we split the string using the
     # '/' separator in 3 new variables
-    print "\$end_date is $end_date \n";
+    dbg("\$end_date is $end_date");
     my ( $month, $day, $year ) = split('/', $end_date );
 
     # fill the DateTime object with these values
