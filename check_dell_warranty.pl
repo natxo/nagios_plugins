@@ -26,7 +26,9 @@ use HTTP::Cookies;
 use File::Temp;
 use Getopt::Long;
 use Pod::Usage;
+use DateTime;
 
+# global variables
 my %ERRORS = (
     'OK'        => 0,
     'WARNING'   => 1,
@@ -44,7 +46,9 @@ my $version        = "0.03";
 my $revision       = undef;
 my $warning        = 90;
 my $critical       = 30;
+my $days_left      = undef;
 
+# cli options
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
     'H|hostname=s' => \$host,
@@ -62,6 +66,7 @@ if ($revision) {
     exit $ERRORS{OK};
 }
 
+# documentation
 pod2usage(1) if $help;
 
 #pod2usage(-verbose=>0, -noperldoc => 1,) if help();
@@ -92,13 +97,12 @@ unless ( defined $tag ) {
     exit $ERRORS{UNKNOWN};
 }
 
-# we will save the 'days left' field in this array. There usually are
+# we will save the 'end date' field in this array. There usually are
 # two rows with this field on the $url
-my @days_left;
+my @end_date;
 
-# this is the final number of days left we are interested in. The
-# @days_left array should have this number twice
-my $days_left = undef;
+# @end_date array should have this number twice
+my $end_date = undef;
 
 # create a temporary file where we will save the Dell website with the
 # warranty info. The file will clear itself when the script is finished
@@ -107,6 +111,16 @@ dbg(
     info"
 );
 my $content = File::Temp->new();
+
+# create 2 DateTime objects that we need to compare: one is the actual date
+# and the other one we create from the result we parse from the dell.com site.
+# We need 2 DateTime objects because we can only compare DateTime objects to
+# get the warranty days left.
+my $dt_now = DateTime->now( time_zone => 'local' );
+
+# this will be calculated from the info we get from dell.com, see
+# _from_text_to_datetime function
+my $dt_dellsite = undef;
 
 # create a cookiejar object, no cookies, no info from dell
 my $cookiejar = HTTP::Cookies->new();
@@ -152,13 +166,15 @@ if ( defined $file_is_binary ) {
     dbg("Yes, we need to gunzip!");
     _extract_file($content);
     _days_warranty_left($content);
-    _get_days_left(@days_left);
+    _get_end_date(@end_date);
+    _find_days_left() ;
     _get_crit_warning($days_left);
 }
 elsif ( defined $file_is_text ) {
     dbg("no compression found, proceeding with the rest");
     _days_warranty_left($content);
-    _get_days_left(@days_left);
+    _get_end_date(@end_date);
+    _find_days_left() ;
     _get_crit_warning($days_left);
 }
 
@@ -187,7 +203,7 @@ sub _days_warranty_left {
     my ($content) = @_;
     my $te ;
     use HTML::TableExtract;
-    my @headers = qw(Services Provider Start End Days);
+    my @headers = qw(Services Provider Start End);
     if ( defined $debug ) {
         $te = HTML::TableExtract->new( headers => \@headers, debug => 2, );
     }
@@ -203,24 +219,24 @@ sub _days_warranty_left {
     dbg("get rows in the html tables");
     for my $ts ( $te->tables ) {
         for my $row_ref ( $ts->rows ) {
-            # store the days left value in global @days_left
-            dbg("save the value in the days left cell in \@days_left");
-            push @days_left, $row_ref->[4];
+            # store the days left value in global @end_date
+            dbg("save the value in the days left cell in \@end_date");
+            push @end_date, $row_ref->[3];
         }
     }
 
-    dbg("@days_left");
-    return @days_left;
+    dbg("@end_date");
+    return @end_date;
 }    # ----------  end of subroutine days_warranty_left  ----------
 
 #===  FUNCTION  ================================================================
-#         NAME:  _get_days_left
-#      PURPOSE:  compare the @days_left array, get just one of the two
+#         NAME:  _get_end_date
+#      PURPOSE:  compare the @end_date array, get just one of the two
 #                values if they are equal
-#   PARAMETERS:  @days_left
-#      RETURNS:  $days_left
+#   PARAMETERS:  @end_date
+#      RETURNS:  $end_date
 #  DESCRIPTION:  ????
-#       THROWS:  if we do not get 2 values in @days_left, croak.
+#       THROWS:  if we do not get 2 values in @end_date, croak.
 #                If the 2nd value is '0', then there is no next business
 #                day support (only 4hr mission critical support), so
 #                just skip the second value
@@ -230,36 +246,36 @@ sub _days_warranty_left {
 #     SEE ALSO:  n/a
 #===============================================================================
 
-sub _get_days_left {
-    if ( scalar(@days_left) >= 1 ) {
-        if ( $_[1] == $_[0] ) {
-            $days_left = $_[1];
-            dbg("getting the array \@days_left");
-            return $days_left;
+sub _get_end_date {
+    if ( scalar(@end_date) >= 1 ) {
+        if ( $_[1] eq $_[0] ) {
+            $end_date = $_[1];
+            dbg("getting the array \@end_date");
+            return $end_date;
         }
         # if the 2nd or 3rd result are 0, keep the first
-        elsif ( $_[1]  == 0 )  {
-            $days_left = $_[0];
-            return $days_left;
+        elsif ( $_[1]  eq 0 )  {
+            $end_date = $_[0];
+            return $end_date;
         }
-        elsif ( $_[2]  == 0 )  {
-            $days_left = $_[0];
-            return $days_left;
+        elsif ( $_[2] eq 0 )  {
+            $end_date = $_[0];
+            return $end_date;
         }
     }
     else {
         dbg(
-"We did not get 2 values in \@days_left, do we have the right dell tag?"
+"We did not get 2 values in \@end_date, do we have the right dell tag?"
         );
-        dbg( scalar(@days_left) );
-        dbg(@days_left);
+        dbg( scalar(@end_date) );
+        dbg(@end_date);
         return "UNKONWN";
     }
 }
 
-sub _is_days_left_defined {
-    ($days_left) = @_;
-    if ( defined $days_left ) {
+sub _is_end_date_defined {
+    ($end_date) = @_;
+    if ( defined $end_date ) {
         return;
     }
     else {
@@ -267,7 +283,49 @@ sub _is_days_left_defined {
 "Could not find the number of days left in the warranty. Have you entered a correct Service Tag?\n";
         exit $ERRORS{UNKNOWN};
     }
-}    # ----------  end of subroutine _is_days_left_defined  ----------
+}    # ----------  end of subroutine _is_end_date_defined  ----------
+
+
+#===  FUNCTION  ================================================================
+#         NAME: _from_text_to_datetime
+#      PURPOSE: convert $days_left string to DateTime object
+#   PARAMETERS: 
+#      RETURNS: DateTime object with warranty end date from dell.com site
+#  DESCRIPTION: after dell.com changed their site we no longer get a 'days
+#  left cell we can use, only a 'start date' and 'end date' cell. We need to
+#  compare the string in mm/dd/yyyy format. Using the DateTime module we can
+#  compare the dates and get the days left we used to :-)
+#
+#       THROWS: no exceptions
+#     COMMENTS: none
+#     SEE ALSO: n/a
+#===============================================================================
+sub _from_text_to_datetime {
+    # $end_date is in the format mm/dd/yyyy, so we split the string using the
+    # '/' separator in 3 new variables
+    print "\$end_date is $end_date \n";
+    my ( $month, $day, $year ) = split('/', $end_date );
+
+    # fill the DateTime object with these values
+    $dt_dellsite = DateTime->new (
+        year           => $year,
+        month          => $month,
+        day            => $day,
+        time_zone      => 'local',
+    ); 
+
+    return $dt_dellsite;
+} ## --- end sub _from_text_to_datetime
+
+
+sub _find_days_left {
+
+    _from_text_to_datetime;
+
+    my $dur = $dt_dellsite->delta_days($dt_now); 
+    $days_left = $dur->in_units('days');
+    return $days_left;
+} ## --- end sub _find_days_left
 
 #===  FUNCTION  ================================================================
 #         NAME:  _is_file_text_or_bin
@@ -385,27 +443,27 @@ sub _get_delltag_dmidecode {
 #     SEE ALSO:  n/a
 #===============================================================================
 sub _get_crit_warning {
-    my ($days) = @_;
-    dbg("number of days left now is $days");
-    if ( $days >= $warning ) {
+    my ($days_left) = @_;
+    dbg("number of days left now is $days_left");
+    if ( $days_left >= $warning ) {
         unlink $content
           if -e $content
               or warn "could not delete $content: $!\n";
-        print "OK: $days days of warranty left\n";
+        print "OK: $days_left days of warranty left\n";
         exit $ERRORS{OK};
     }
     elsif ( $days_left < $warning && $days_left > $critical ) {
         unlink $content
           if -e $content
               or warn "could not delete $content: $!\n";
-        print "WARNING: $days days of warranty left\n";
+        print "WARNING: $days_left days of warranty left\n";
         exit $ERRORS{WARNING};
     }
     elsif ( $days_left <= $critical ) {
         unlink $content
           if -e $content
               or warn "could not delete $content: $!\n";
-        print "CRITICAL: $days days of warranty left\n";
+        print "CRITICAL: $days_left days of warranty left\n";
         exit $ERRORS{CRITICAL};
     }
 }
