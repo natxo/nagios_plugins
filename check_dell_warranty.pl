@@ -18,9 +18,12 @@
 #     REVISION:  ---
 #===============================================================================
 
+
+#-------------------------------------------------------------------------------
+#  load necessary modules
+#-------------------------------------------------------------------------------
 use strict;
 use warnings;
-
 use WWW::Mechanize;
 use HTTP::Cookies;
 use File::Temp;
@@ -28,7 +31,10 @@ use Getopt::Long;
 use Pod::Usage;
 use DateTime;
 
-# global variables
+
+#-------------------------------------------------------------------------------
+# global variables 
+#-------------------------------------------------------------------------------
 my %ERRORS = (
     'OK'        => 0,
     'WARNING'   => 1,
@@ -36,19 +42,29 @@ my %ERRORS = (
     'UNKNOWN'   => 3,
     'DEPENDENT' => 4,
 );
+my $warning        = 90;
+my $critical       = 30;
+my $version        = "0.03";
+my $help           = 0;
+my $host           = 0;
+my $revision       = undef;
+
+# variables we need for functions later
 my $file_is_text   = undef;
 my $file_is_binary = undef;
 my $debug          = undef;
-my $help           = 0;
-my $host           = 0;
 my $tag            = undef;
-my $version        = "0.03";
-my $revision       = undef;
-my $warning        = 90;
-my $critical       = 30;
 my $days_left      = undef;
+# we will save the 'end date' field in this array. There usually are
+# two rows with this field on the $url
+my @end_date;
+# @end_date array should have this number twice
+my $end_date = undef;
 
-# cli options
+
+#-------------------------------------------------------------------------------
+# cli options 
+#-------------------------------------------------------------------------------
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
     'H|hostname=s' => \$host,
@@ -66,13 +82,21 @@ if ($revision) {
     exit $ERRORS{OK};
 }
 
-# documentation
+
+#-------------------------------------------------------------------------------
+# documentation 
+#-------------------------------------------------------------------------------
+ 
 pod2usage(1) if $help;
 
 #pod2usage(-verbose=>0, -noperldoc => 1,) if help();
 #pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
 pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host;
 
+
+#-------------------------------------------------------------------------------
+#  process cli switches
+#-------------------------------------------------------------------------------
 # if no tag is given from the cli and the check is run against localhost
 # try getting it from dmidecode
 if ( !defined $tag and $host eq "localhost" ) {
@@ -97,12 +121,11 @@ unless ( defined $tag ) {
     exit $ERRORS{UNKNOWN};
 }
 
-# we will save the 'end date' field in this array. There usually are
-# two rows with this field on the $url
-my @end_date;
 
-# @end_date array should have this number twice
-my $end_date = undef;
+
+#-------------------------------------------------------------------------------
+#  main script
+#-------------------------------------------------------------------------------
 
 # create a temporary file where we will save the Dell website with the
 # warranty info. The file will clear itself when the script is finished
@@ -177,6 +200,11 @@ elsif ( defined $file_is_text ) {
     _find_days_left() ;
     _get_crit_warning($days_left);
 }
+
+
+#-------------------------------------------------------------------------------
+#  functions
+#-------------------------------------------------------------------------------
 
 # get the table with headers: Services, Provider, Warranty, Start,
 # End, Days. These are a list of regular expressions per header, so the
@@ -463,6 +491,11 @@ sub _get_crit_warning {
         exit $ERRORS{CRITICAL};
     }
 }
+
+
+#-------------------------------------------------------------------------------
+#  Plain Old Documentation
+#-------------------------------------------------------------------------------
 
 =head1 NAME
 
