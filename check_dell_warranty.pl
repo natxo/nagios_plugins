@@ -55,11 +55,16 @@ my $file_is_binary = undef;
 my $debug          = undef;
 my $tag            = undef;
 my $days_left      = undef;
+
 # we will save the 'end date' field in this array. There usually are
 # two rows with this field on the $url
 my @end_date;
+
 # @end_date array should have this number twice
-my $end_date = undef;
+my $end_date       = undef;
+
+# variable to save the DateTime comparison objects $dt_now/$dt_dellsite
+my $cmp_date       = undef;
 
 
 #-------------------------------------------------------------------------------
@@ -191,6 +196,7 @@ if ( defined $file_is_binary ) {
     _days_warranty_left($content);
     _get_end_date(@end_date);
     _find_days_left() ;
+    _compare_date_objects();
     _get_crit_warning($days_left);
 }
 elsif ( defined $file_is_text ) {
@@ -198,6 +204,7 @@ elsif ( defined $file_is_text ) {
     _days_warranty_left($content);
     _get_end_date(@end_date);
     _find_days_left() ;
+    _compare_date_objects();
     _get_crit_warning($days_left);
 }
 
@@ -351,6 +358,28 @@ sub _find_days_left {
     return $days_left;
 } ## --- end sub _find_days_left
 
+
+#===  FUNCTION  ================================================================
+#         NAME: _compare_date_objects
+#      PURPOSE: find out if $dt_now is older or newer than $dt_dellsite
+#   PARAMETERS: none
+#      RETURNS: $cmp_date: 
+#               -1 if $dt_dellsite < $dt_now
+#               0  if $dt_dellsite == $dt_now
+#               1  if $dt_dellsite > $dt_now
+#  DESCRIPTION: 
+#       THROWS: no exceptions
+#     COMMENTS: if I do now compare this, after reaching 0 days warranty, the
+#     clock starts counting the other way ;-), which is obviosly a bug in my
+#     script.
+#     SEE ALSO: n/a
+#===============================================================================
+sub _compare_date_objects {
+    $cmp_date = DateTime->compare( $dt_dellsite, $dt_now );
+    dbg("$dt_dellsite, $dt_now, $cmp_date");
+    return $cmp_date;
+}
+
 #===  FUNCTION  ================================================================
 #         NAME:  _is_file_text_or_bin
 #      PURPOSE:  find out if dumped file is compressed or text only
@@ -459,6 +488,8 @@ sub _get_delltag_dmidecode {
 #      PURPOSE:  check if the value in $days_left should is bigger or
 #                smaller than $warning or $critical. It now removes the
 #                temporary file created by the script.
+#                if $cmp_date == 1 then still underwarranty
+#                if $cmd_date == 0 of == -1, then no more warranty
 #   PARAMETERS:  $days_left
 #      RETURNS:  OK, WARNING or CRITICAL
 #  DESCRIPTION:  ????
@@ -469,19 +500,28 @@ sub _get_delltag_dmidecode {
 sub _get_crit_warning {
     my ($days_left) = @_;
     dbg("number of days left now is $days_left");
-    if ( $days_left >= $warning ) {
+    if ( $days_left >= $warning && $cmp_date == 1 ) {
         unlink $content
           if -e $content
               or warn "could not delete $content: $!\n";
         print "OK: $days_left days of warranty left\n";
         exit $ERRORS{OK};
     }
-    elsif ( $days_left < $warning && $days_left > $critical ) {
+    # here was the bug, if $cmp_date is 1, then still under warranty
+    elsif ( ( $days_left < $warning && $days_left > $critical )
+                && $cmp_date == 1 ) {
         unlink $content
           if -e $content
               or warn "could not delete $content: $!\n";
         print "WARNING: $days_left days of warranty left\n";
         exit $ERRORS{WARNING};
+    }
+    elsif ( $days_left <= $critical && $cmp_date <= 0 ) {
+        unlink $content
+          if -e $content
+              or warn "could not delete $content: $!\n";
+        print "CRITICAL: server already $days_left days out of warranty.\n";
+        exit $ERRORS{CRITICAL};
     }
     elsif ( $days_left <= $critical ) {
         unlink $content
