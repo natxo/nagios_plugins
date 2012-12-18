@@ -13,7 +13,7 @@
 #        NOTES:  ---
 #       AUTHOR:  Natxo Asenjo (), nasenjo@asenjo.nl
 #      COMPANY:
-#      VERSION:  0.3
+#      VERSION:  0.4
 #      CREATED:  09/21/2010 09:25:54 PM
 #     REVISION:  ---
 #===============================================================================
@@ -44,7 +44,7 @@ my %ERRORS = (
 );
 my $warning        = 90;
 my $critical       = 30;
-my $version        = "0.03";
+my $version        = "0.4";
 my $help           = 0;
 my $host           = 0;
 my $revision       = undef;
@@ -488,8 +488,8 @@ sub _get_delltag_dmidecode {
 #      PURPOSE:  check if the value in $days_left should is bigger or
 #                smaller than $warning or $critical. It now removes the
 #                temporary file created by the script.
-#                if $cmp_date == 1 then still underwarranty
-#                if $cmd_date == 0 of == -1, then no more warranty
+#                if $cmp_date == 1 then still under warranty
+#                if $cmd_date == 0 or == -1, then no more warranty
 #   PARAMETERS:  $days_left
 #      RETURNS:  OK, WARNING or CRITICAL
 #  DESCRIPTION:  ????
