@@ -160,7 +160,7 @@ if ( $mech->success ) {
 
     # get the link matching the string 'Download'
     # in $latest we get an array reference, we dereference it in $latest_url
-    my $latest = $mech->find_link( text_regex => qr/Download/ );
+    my $latest = $mech->find_link( text_regex => qr/download/ );
 
     my $latest_url = $latest->url;
 
