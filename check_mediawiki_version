@@ -53,30 +53,37 @@ my $mw_dl_url = "http://www.mediawiki.org/wiki/Download";
 # placeholder of the latest mediawiki version from $mw_dl_url
 my $mw_latest_version;
 
-my $debug = undef;
+my $debug    = undef;
 my $response = undef;
 
-my $help    = undef;
-my $version = undef;
-my $realm   = undef;
-my $netloc  = undef;
-my $user    = undef;
-my $passwd  = undef;
+my $help     = undef;
+my $version  = "0.3";
+my $realm    = undef;
+my $netloc   = undef;
+my $user     = undef;
+my $passwd   = undef;
+my $revision = undef;
 
 #-------------------------------------------------------------------------------
 # process cli arguments
 #-------------------------------------------------------------------------------
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
-    'H|hostname=s'  => \$siteurl,
-    'n|netloc=s'    => \$netloc,
-    'r|realm=s'     => \$realm,
-    'u|user=s'      => \$user,
-    'p|passwd=s'    => \$passwd,
-    'h|help|?'      => \$help,
-    'v|verbose'     => \$debug,
-    'V|version'     => \$version,
+    'H|hostname=s' => \$siteurl,
+    'n|netloc=s'   => \$netloc,
+    'r|realm=s'    => \$realm,
+    'u|user=s'     => \$user,
+    'p|passwd=s'   => \$passwd,
+    'h|help|?'     => \$help,
+    'v|verbose'    => \$debug,
+    'V|version'    => \$revision,
 );
+
+# give version if asked and exit
+if ($revision) {
+    print "$0 version: $version\n";
+    exit 0;
+}
 
 # if help chosen, display it
 pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
@@ -89,7 +96,7 @@ pod2usage() unless $siteurl;
 #-------------------------------------------------------------------------------
 # create a user agent object to show in the webserver logs
 my $ua = LWP::UserAgent->new;
-$ua->agent( $agent );
+$ua->agent($agent);
 
 # do not wait for ever, after 20 seconds give up
 $ua->timeout(20);
@@ -100,7 +107,7 @@ if ( defined $debug ) {
 
 # if we need to enter login info, else just get the url
 if ( defined $user ) {
-    $ua->credentials( $netloc, $realm, $user, $passwd ) ;
+    $ua->credentials( $netloc, $realm, $user, $passwd );
     $response = $ua->get($siteurl);
 }
 else {
@@ -146,7 +153,7 @@ my $mech = WWW::Mechanize->new( autocheck => 0, );
 
 # set another user-agent, mediawiki.org blocks libwww-perl (if they think this
 # helps ...)
-$mech->agent( $agent );
+$mech->agent($agent);
 
 # show debugging if verbose is on
 if ( defined $debug ) {
