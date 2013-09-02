@@ -8,7 +8,6 @@ binmode STDOUT, ":utf8";
 
 # load the libwww module with cookies
 use WWW::Mechanize;
-#use IO::Socket::SSL qw();
 
 # load the Getopt::Long module for cli arguments
 use Getopt::Long;
@@ -21,6 +20,8 @@ use Pod::Usage;
 my $hostname    = undef;    # this has to be a cli argument
 my $help        = undef;
 my $debug       = undef;
+my $user        = undef || "supervisor";
+my $password    = undef || "up6!z.nl";
 
 #-------------------------------------------------------------------------------
 # process cli arguments
@@ -30,6 +31,8 @@ GetOptions(
     'H|hostname=s'  => \$hostname,
     'h|help|?'      => \$help,
     'v|verbose'     => \$debug,
+    'u|user=s'      => \$user,
+    'p|password=s'  => \$password,
 );
 
 # if help chosen, display it
@@ -59,7 +62,8 @@ $mech->get( "https://$hostname" ) ;
 
 # if the pop up turns up, this is then basic auth
 if ( $mech->status() == 401 ) {
-    $mech->credentials( "sa_nagios", "nagiosrules") ;
+    #$mech->credentials( "sa_nagios", "nagiosrules") ;
+    $mech->credentials( "$user", "$password") ;
     $mech->get( "https://$hostname/upsstat.htm" ) ;
     parse_text();
 }
@@ -70,8 +74,8 @@ else {
     # login, there is just one form
     $mech->submit_form(
         form_number     => 1,
-        fields          => { login_username => 'sa_nagios',
-                             login_password => 'nagiosrules',
+        fields          => { login_username => $user,
+                             login_password => $password,
         },
      );
 
@@ -120,8 +124,8 @@ check_ups_http - check web interface APC ups for critical alerts
 
 This documentation referst to <check_ups_http> version 0.1
 
-=head1 USAGE
-check_ups_http -H host [-v]
+=head1 SYNOPSIS
+check_ups_http -H host [-v -u username -p password]
 
 =head1 REQUIRED ARGUMENTS
 -H | --hostname: ip address/dns hostname of nic we want to monitor
@@ -132,6 +136,12 @@ check_ups_http -H host [-v]
 
 -v | --verbose   display extra debugging info
 
+-u | --user      specify user to login the ups (default: see 'Global
+variables' in script source)
+
+-p | --password  specify password (default: see 'Global variables' in script
+source) 
+
 -h | --help      this text
 
 =head1 DESCRIPTION
@@ -141,6 +151,10 @@ interface and parses its content looking for alarms.
 
 =head1 REQUIREMENTS
 This scripts requires the Perl WWW::Mechanize and Crypt::SSLeay modules.
+
+=head1 SEEALSO
+In the code, section 'Global Variables', I have hardcoded the user/password
+combination to login the web interface.
 
 =head1 AUTHOR
 José Asenjo
