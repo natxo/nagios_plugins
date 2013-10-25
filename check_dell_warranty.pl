@@ -1,4 +1,4 @@
-#!/usr/bin/perl 
+#!/usr/bin/env perl 
 #===============================================================================
 #
 #         FILE:  check_dell_warranty.pl
@@ -94,8 +94,6 @@ if ($revision) {
  
 pod2usage(1) if $help;
 
-#pod2usage(-verbose=>0, -noperldoc => 1,) if help();
-#pod2usage(-verbose=>0, -noperldoc => 1,) unless $tag;
 pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host;
 
 
@@ -170,99 +168,40 @@ $mech->agent(
 "check_dell_warranty/$version; nagios plugin to monitor number of days left before warranty expires"
 );
 
+#my $url =
+#"http://www.dell.com/support/troubleshooting/us/en/04/TroubleShooting/Display_Warranty_Tab?name=TroubleShooting_WarrantyTab";
+
 my $url =
-"http://www.dell.com/support/troubleshooting/us/en/04/TroubleShooting/Display_Warranty_Tab?name=TroubleShooting_WarrantyTab";
+"http://www.dell.com/support/troubleshooting/us/en/04/Servicetag/$tag" ;
 
 dbg("site is $url");
 
-# dump the page to the temporary file $content
-dbg("dump the site to the temporary file $content");
-$mech->get( $url, ":content_file" => "$content" );
+$mech->get( $url) ;
 
 die "cannot get the page: ", $mech->response->status_line
   unless $mech->success;
 
-# check if $content is gzipped
-_is_file_text_or_bin($content);
+# we save the text (no html) in $text
+my $text = $mech->text();
 
-# if the module Compress::Zlib is installed, WWW::Mechanize will offer
-# to download the file with gzip compression enabled. If it is not
-# compressed, it will be HTML text. If it is compressed, it will be
-# binary. Once we know that, we can extract the file, parse it and get
-# the results in one go
-if ( defined $file_is_binary ) {
-    dbg("Yes, we need to gunzip!");
-    _extract_file($content);
-    _days_warranty_left($content);
+dbg("We got this info: $text" );
+
+# We look for a date ending in a dot (.) and with the strings
+# 'warranty information' whatever 'with and end date of'
+if ( $text =~ /.*warranty information(.*) with an end date of (.*?)\..*$/i ) {
+        my $warranty_type = $1;
+        my $date = $2;
+        dbg("We got this as warranty info: $warranty_type\t$date" ) ;
+        push @end_date, $date;
     _get_end_date(@end_date);
     _find_days_left() ;
     _compare_date_objects();
     _get_crit_warning($days_left);
 }
-elsif ( defined $file_is_text ) {
-    dbg("no compression found, proceeding with the rest");
-    _days_warranty_left($content);
-    _get_end_date(@end_date);
-    _find_days_left() ;
-    _compare_date_objects();
-    _get_crit_warning($days_left);
-}
-
 
 #-------------------------------------------------------------------------------
 #  functions
 #-------------------------------------------------------------------------------
-
-# get the table with headers: Services, Provider, Warranty, Start,
-# End, Days. These are a list of regular expressions per header, so the
-# first header can be 'Description of the Warranty' but you shorten it
-# to 'Description'. Every header corresponds with a column in the table. I
-# declare an array @headers in order to make the $te object more easily
-# readable, you do not nead to predeclare it, you could use an anonymous
-# array reference like :
-# headers => [ qw(Description Provider Warranty Start End Days) ];
-# If the headers change, just change them here.
-
-#===  FUNCTION  ================================================================
-#         NAME:  _days_warranty_left
-#      PURPOSE:  get the remaining days of warranty
-#   PARAMETERS:  ????
-#      RETURNS:  an array with the days left of warranty (usually 2
-#                items with the same value
-#  DESCRIPTION:  ????
-#       THROWS:  no exceptions
-#     COMMENTS:  none
-#     SEE ALSO:  pod file above
-#===============================================================================
-sub _days_warranty_left {
-    my ($content) = @_;
-    my $te ;
-    use HTML::TableExtract;
-    my @headers = qw(Services Provider Start End);
-    if ( defined $debug ) {
-        $te = HTML::TableExtract->new( headers => \@headers, debug => 2, );
-    }
-    else {
-        $te = HTML::TableExtract->new( headers => \@headers, );
-    }
-
-    #parse the $content
-    dbg("parsing the $content file");
-    $te->parse_file($content);
-
-    # get the rows
-    dbg("get rows in the html tables");
-    for my $ts ( $te->tables ) {
-        for my $row_ref ( $ts->rows ) {
-            # store the days left value in global @end_date
-            dbg("save the value in the days left cell in \@end_date");
-            push @end_date, $row_ref->[3];
-        }
-    }
-
-    dbg("@end_date");
-    return @end_date;
-}    # ----------  end of subroutine days_warranty_left  ----------
 
 #===  FUNCTION  ================================================================
 #         NAME:  _get_end_date
@@ -282,18 +221,11 @@ sub _days_warranty_left {
 #===============================================================================
 
 sub _get_end_date {
-    if ( scalar(@end_date) >= 1 ) {
-        if ( $_[1] eq $_[0] ) {
-            $end_date = $_[1];
+    if ( scalar(@end_date) == 1 ) {
+            $end_date = $_[0];
             dbg("getting the array \@end_date");
             return $end_date;
         }
-        # if the 2nd or 3rd result are 0, keep the first
-        elsif ( $_[0] gt $_[1] )  {
-            $end_date = $_[0];
-            return $end_date;
-        }
-    }
     else {
         dbg(
 "We did not get 2 values in \@end_date, do we have the right dell tag?"
@@ -379,67 +311,6 @@ sub _compare_date_objects {
     dbg("$dt_dellsite, $dt_now, $cmp_date");
     return $cmp_date;
 }
-
-#===  FUNCTION  ================================================================
-#         NAME:  _is_file_text_or_bin
-#      PURPOSE:  find out if dumped file is compressed or text only
-#   PARAMETERS:  the path to the html file dumped to the hard disk
-#      RETURNS:  true for either text or binary files
-#  DESCRIPTION:  if the Compress::Zlib module is installed, then
-#                WWW::Mechanize offers to downlogd gzipped files. We
-#                need to find out if the file is gzipped of not
-#       THROWS:  no exceptions
-#     COMMENTS:  none
-#     SEE ALSO:  n/a
-#===============================================================================
-sub _is_file_text_or_bin {
-    my ($dumped_file) = @_;
-    if ( -T $dumped_file ) {
-        dbg("$content is a text file!");
-        return $file_is_text = 1;
-    }
-    elsif ( -B $dumped_file ) {
-        dbg("$content is a binary file!");
-        return $file_is_binary = 1;
-    }
-}    # ----------  end of subroutine _is_file_text_or_bin  ----------
-
-#===  FUNCTION  ================================================================
-#         NAME:  _extract_file
-#      PURPOSE:  extract the compressed dumped file
-#   PARAMETERS:  path to the dumped file
-#      RETURNS:  nothing
-#  DESCRIPTION:  if the file is compressed, then we rename it with the
-#                extension .gz. Otherwise gunzip complains
-#       THROWS:  no exceptions
-#     COMMENTS:  once the gzipped file is extrated, we need to rename it
-#                to *.html or HTML::Extract cannot understand it
-#     SEE ALSO:  n/a
-#===============================================================================
-sub _extract_file {
-    my ($compressed_file) = @_;
-    use File::Copy;
-    my $gzippedfile = "$content\.gz";
-    my $htmlfile    = "$content\.html";
-
-    dbg("rename $content to $gzippedfile");
-    move( $content, $gzippedfile )
-      or die "couldn't move $content to $gzippedfile: $!";
-
-    dbg("extract $gzippedfile");
-    if ( -e "$gzippedfile" ) {
-        system("/bin/gunzip $gzippedfile");
-
-        dbg("rename $content to $htmlfile");
-        move( $content, $htmlfile )
-          or die "could not move $content to $htmlfile: $!\n";
-
-        $content = $htmlfile;
-    }
-    if ( -B $content ) {
-        dbg("$content is binary, HTML::Extract cannot parse it");
-    }
-}    # ----------  end of subroutine _extract_file  ----------
 
 sub dbg {
     print STDERR "--", shift, "\n" if $debug;
@@ -574,42 +445,3 @@ dmidecode (only localhost), snmp (todo) or omreport (todo, only localhost)
 =head1 AUTHOR
 
 natxo asenjo in his spare time
-
-=head1 Debugging HTML::TableExtract
-
-How to debug HTML::TableExtract
-Replace the $te object and for loop with this to get *all tables* and
-their location in the $content
-
- 
-    my $te = HTML::TableExtract->new();
-
-    $te->parse_file($url);
-
-    for my $ts ($te->tables) {
-        print "Table (", join(',', $ts->coords), "):\n";
-
-        for my $row_ref ($ts->rows) {
-            print join(',', @$row_ref), "\n";
-        }
-    }
-
-You get all the tables in $content and the one we want is something like this:
-
-Table found at 6,0:
-Description,Provider,Warranty Extension Notice *,Start Date,End Date,Days Left
-Next Business Day,DELL,No,2/24/2010,2/25/2013,888
-NBD ProSupport For IT On-Site,DELL,No,2/24/2010,2/25/2013,888
-
-so we want to get the table at depth 6 count 0
-
-get the table at depth 6 and count 0 because that one has the info we
-want
-
-my $te = HTML::TableExtract->new( depth => 6, count => 0);
-
-=head1 how to set a cookie using HTTP::Cookies
-
-L<http://stackoverflow.com/questions/2475362/how-can-i-use-perl-to-send-and-http-request-with-a-cookie/>
-
-=cut
