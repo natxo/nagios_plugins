@@ -43,7 +43,8 @@ GetOptions(
     'c|checknow'  => \$checknow,
     'h|help|?'    => \$help,
     'V|version'   => \$revision,
-    'e|exclude=s%' => sub{ push ( @{$exclusions{$_[1]}}, $_[2] ) },
+#    'e|exclude=s%' => sub{ push ( @{$exclusions{$_[1]}}, $_[2] ) },
+    'e|exclude=s%'=> \%exclusions,
 );
 
 # get version info if requested and exit
@@ -55,6 +56,9 @@ pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
 
 pod2usage( -verbose => 1, -noperldoc => 1, ) unless $checknow;
 
+use Data::Dumper;
+print Dumper %exclusions;
+
 #if ( $^O ne "MSWin32" ) {
 #    print "Sorry, this is a MS Windows(TM) check, run it in a MS Windows(TM) host\n";
 #    exit $ERRORS{UNKNOWN};
@@ -65,10 +69,13 @@ pod2usage( -verbose => 1, -noperldoc => 1, ) unless $checknow;
 # /query: get the list of scheduled jobs
 # /fo csv: dump the list as in csv format
 # /v: verbose
-open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
+#open (JOBS, "schtasks /query /fo csv /v |") or die "couldn't exec schtasks: $!\n";
 
-# create a Text::CSV_XS object
-my $csv = Text::CSV_XS->new();
+open (JOBS, "<" , "/home/j.asenjo/Desktop/temp/tasks.csv") or die "$!\n";
+
+my $csv = Text::CSV_XS->new( { binary => 1,
+                               allow_loose_escapes => 1,
+                             } );
 
 # parse JOBS memory handle. The output is a csv file. The second column ($columns[1] is "Taskname",
 # the 7th $columns[6] is "Last Result". I only need the values of "Last Result" which are NOT 0 (0 is good, it means it ran well).
@@ -76,8 +83,8 @@ my $csv = Text::CSV_XS->new();
 # filter them in the next if statements
 
 while ( my $line = <JOBS> ) {
-    chomp $line;
     last if $line =~ /^INFO: There are no scheduled tasks.*$/;
+
 
     if ( $csv->parse($line) ) {
         my @columns = $csv->fields();
@@ -123,7 +130,7 @@ while ( my $line = <JOBS> ) {
 
 # if the %lastresult_of is empty, this will be zero
 if ( scalar keys %lastresult_of == 0 ) {
-    print "0K: All scheduled tasks seem to have run fine\n";
+    print "OK: All scheduled tasks seem to have run fine\n";
     exit $ERRORS{OK};
 }
 else {
