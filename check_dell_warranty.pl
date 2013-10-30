@@ -19,18 +19,19 @@
 #===============================================================================
 
 
+
+
 #-------------------------------------------------------------------------------
 #  load necessary modules
 #-------------------------------------------------------------------------------
 use strict;
 use warnings;
-use WWW::Mechanize;
-use HTTP::Cookies;
-use File::Temp;
+use Mojo::UserAgent;
 use Getopt::Long;
 use Pod::Usage;
 use DateTime;
 
+binmode STDOUT, ':utf8';
 
 #-------------------------------------------------------------------------------
 # global variables 
@@ -44,14 +45,12 @@ my %ERRORS = (
 );
 my $warning        = 90;
 my $critical       = 30;
-my $version        = "0.4";
+my $version        = 1 ;
 my $help           = 0;
 my $host           = 0;
 my $revision       = undef;
 
 # variables we need for functions later
-my $file_is_text   = undef;
-my $file_is_binary = undef;
 my $debug          = undef;
 my $tag            = undef;
 my $days_left      = undef;
@@ -124,19 +123,9 @@ unless ( defined $tag ) {
     exit $ERRORS{UNKNOWN};
 }
 
-
-
 #-------------------------------------------------------------------------------
 #  main script
 #-------------------------------------------------------------------------------
-
-# create a temporary file where we will save the Dell website with the
-# warranty info. The file will clear itself when the script is finished
-dbg(
-    "create a temporary file to store the Dell site with the warranty
-    info"
-);
-my $content = File::Temp->new();
 
 # create 2 DateTime objects that we need to compare: one is the actual date
 # and the other one we create from the result we parse from the dell.com site.
@@ -148,55 +137,36 @@ my $dt_now = DateTime->now( time_zone => 'local' );
 # _from_text_to_datetime function
 my $dt_dellsite = undef;
 
-# create a cookiejar object, no cookies, no info from dell
-my $cookiejar = HTTP::Cookies->new();
 
-# set the cookie (info thanks to view cookies extension of Firefox
-# we need the $tag 
-$cookiejar->set_cookie(0,'OLRProduct',"OLRProduct=$tag|",'/','dell.com',80,0,0,86400,0);
-
-# define the mechanize object
-my $mech = WWW::Mechanize->new( autocheck => 1, cookie_jar => $cookiejar, );
-
-# if $debug show extra info
-if ( defined ($debug) ) {
-    $mech->show_progress(1);
-}
-
-# set the user agent that will show in dell's logs
-$mech->agent(
-"check_dell_warranty/$version; nagios plugin to monitor number of days left before warranty expires"
-);
-
-#my $url =
-#"http://www.dell.com/support/troubleshooting/us/en/04/TroubleShooting/Display_Warranty_Tab?name=TroubleShooting_WarrantyTab";
+# create mojolicious browser agent
+# standard mojolicious does not follow redirects
+my $ua = Mojo::UserAgent->new( max_redirects => 3, );
 
 my $url =
-"http://www.dell.com/support/troubleshooting/us/en/04/Servicetag/$tag" ;
+"http://www.dell.com/support/my-support/us/en/04/product-support/servicetag/$tag";
 
-dbg("site is $url");
+# save the site in $tx
+my $tx = $ua->get( $url);
 
-$mech->get( $url) ;
+if ( my $res = $tx->success ) {
 
-die "cannot get the page: ", $mech->response->status_line
-  unless $mech->success;
-
-# we save the text (no html) in $text
-my $text = $mech->text();
-
-dbg("We got this info: $text" );
-
-# We look for a date ending in a dot (.) and with the strings
-# 'warranty information' whatever 'with and end date of'
-if ( $text =~ /.*warranty information(.*) with an end date of (.*?)\..*$/i ) {
-        my $warranty_type = $1;
-        my $date = $2;
-        dbg("We got this as warranty info: $warranty_type\t$date" ) ;
-        push @end_date, $date;
-    _get_end_date(@end_date);
-    _find_days_left() ;
-    _compare_date_objects();
-    _get_crit_warning($days_left);
+# let mojo do its magic
+# find an element in the dom containing a <div> tag with class id span6 *and*
+# a link containing the anchor '#warrantyModal'. Inside that, you will find
+# the end date for the hardware warranty
+    for my $e ( $tx->res->dom->find('div.span6 a[href^=#warrantyModal]')->text) {
+        #say $e;
+        push @end_date, $e;
+        _get_end_date(@end_date);
+        _find_days_left() ;
+        _compare_date_objects();
+        _get_crit_warning($days_left);
+    }
+}
+else {
+    my ($err, $code) = $tx->error;
+    print $code ? "$code response: $err" : "Connection error: $err\n";
+    exit 1;
 }
 
 #-------------------------------------------------------------------------------
@@ -372,32 +342,20 @@ sub _get_crit_warning {
     my ($days_left) = @_;
     dbg("number of days left now is $days_left");
     if ( $days_left >= $warning && $cmp_date == 1 ) {
-        unlink $content
-          if -e $content
-              or warn "could not delete $content: $!\n";
         print "OK: $days_left days of warranty left\n";
         exit $ERRORS{OK};
     }
     # here was the bug, if $cmp_date is 1, then still under warranty
     elsif ( ( $days_left < $warning && $days_left > $critical )
                 && $cmp_date == 1 ) {
-        unlink $content
-          if -e $content
-              or warn "could not delete $content: $!\n";
         print "WARNING: $days_left days of warranty left\n";
         exit $ERRORS{WARNING};
     }
     elsif ( $days_left <= $critical && $cmp_date <= 0 ) {
-        unlink $content
-          if -e $content
-              or warn "could not delete $content: $!\n";
         print "CRITICAL: server already $days_left days out of warranty.\n";
         exit $ERRORS{CRITICAL};
     }
     elsif ( $days_left <= $critical ) {
-        unlink $content
-          if -e $content
-              or warn "could not delete $content: $!\n";
         print "CRITICAL: $days_left days of warranty left\n";
         exit $ERRORS{CRITICAL};
     }
