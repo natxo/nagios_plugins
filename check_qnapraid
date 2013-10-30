@@ -3,17 +3,17 @@
 #
 #         FILE:  check_qnapraid
 #
-#        USAGE:  ./check_qnapraid  
+#        USAGE:  ./check_qnapraid
 #
 #  DESCRIPTION: nagios check to monitor the health of the qnap
-#  appliances. Tested with a TS-859U-RP+ Turbo NAS 
+#  appliances. Tested with a TS-859U-RP+ Turbo NAS
 #
 #      OPTIONS:  ---
 # REQUIREMENTS:  ---
 #         BUGS:  ---
 #        NOTES:  ---
 #       AUTHOR:  Natxo Asenjo (), nasenjo@asenjo.nl
-#      COMPANY:  
+#      COMPANY:
 #      VERSION:  1.0
 #      CREATED:  07/07/2011 10:00:00 PM
 #     REVISION:  ---
@@ -24,7 +24,7 @@ use strict;
 use warnings;
 
 # variables:
-my ($host, $community, $oid_softraidstatus, $help) ;
+my ( $host, $community, $oid_softraidstatus, $help );
 
 # load snmp library
 use Net::SNMP;
@@ -39,17 +39,17 @@ use Pod::Usage;
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 
 GetOptions(
-    'H|hostname=s'      => \$host,
-    'C|community=s'     => \$community,
-    'h|help|?'          => \$help,
+    'H|hostname=s'  => \$host,
+    'C|community=s' => \$community,
+    'h|help|?'      => \$help,
 );
 
 # print the help message if option help is chosen or if no $host or
 # $community are specified
 
-pod2usage(-verbose => 2, -noperldoc => 1) if $help;
+pod2usage( -verbose => 2, -noperldoc => 1 ) if $help;
 
-pod2usage(1) unless ($host && $community) ;
+pod2usage(1) unless ( $host && $community );
 
 my %ERRORS = (
     'OK'        => 0,
@@ -64,8 +64,8 @@ $oid_softraidstatus = '1.3.6.1.4.1.24681.1.2.17.1.6.1';
 
 # start snmp session
 my ( $session, $error ) = Net::SNMP->session(
-    -hostname   => $host,
-    -community  => $community,
+    -hostname  => $host,
+    -community => $community,
 );
 
 # if the snmp session fails, exit check with error message
@@ -75,8 +75,7 @@ if ( !defined $session ) {
 }
 
 # get the value in our wanted oid
-my $result = $session->get_request(
-    -varbindlist => [$oid_softraidstatus] , );
+my $result = $session->get_request( -varbindlist => [$oid_softraidstatus], );
 
 # if we cannot get a result, exit check with error message
 if ( !defined $result ) {
@@ -97,15 +96,15 @@ if ( $result->{$oid_softraidstatus} eq "Ready" ) {
     exit $ERRORS{OK};
 }
 elsif ( $result->{$oid_softraidstatus} eq "Rebuilding..." ) {
-    print "WARNING: software raid status is $result->{$oid_softraidstatus}.\n"; 
+    print "WARNING: software raid status is $result->{$oid_softraidstatus}.\n";
     exit $ERRORS{WARNING};
 }
 elsif ( $result->{$oid_softraidstatus} =~ /^In degraded mode.*$/ ) {
-    print "CRITICAL: software raid status is $result->{$oid_softraidstatus}.\n"; 
+    print "CRITICAL: software raid status is $result->{$oid_softraidstatus}.\n";
     exit $ERRORS{CRITICAL};
 }
 else {
-    print "UNKNOWN: software raid status is $result->{$oid_softraidstatus}.\n"; 
+    print "UNKNOWN: software raid status is $result->{$oid_softraidstatus}.\n";
     exit $ERRORS{UNKNOWN};
 }
 
