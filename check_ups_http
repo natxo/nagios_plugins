@@ -17,22 +17,22 @@ use Pod::Usage;
 
 # GLOBAL VARIABLES
 #-------------------------------------------------------------------------------
-my $hostname    = undef;    # this has to be a cli argument
-my $help        = undef;
-my $debug       = undef;
-my $user        = undef || "supervisor";
-my $password    = undef || "up6!z.nl";
+my $hostname = undef;                   # this has to be a cli argument
+my $help     = undef;
+my $debug    = undef;
+my $user     = undef || "supervisor";
+my $password = undef || "up6!z.nl";
 
 #-------------------------------------------------------------------------------
 # process cli arguments
 #-------------------------------------------------------------------------------
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
-    'H|hostname=s'  => \$hostname,
-    'h|help|?'      => \$help,
-    'v|verbose'     => \$debug,
-    'u|user=s'      => \$user,
-    'p|password=s'  => \$password,
+    'H|hostname=s' => \$hostname,
+    'h|help|?'     => \$help,
+    'v|verbose'    => \$debug,
+    'u|user=s'     => \$user,
+    'p|password=s' => \$password,
 );
 
 # if help chosen, display it
@@ -44,17 +44,16 @@ pod2usage( -verbose => 2, -noperldoc => 1, ) unless $hostname;
 # create mechanize object, save cookies in memory
 # do not use autocheck = 1, othewise on errors the script just stops
 my $mech = WWW::Mechanize->new(
-    cookiejar   => {},
-    ssl_opts    => { SSL_version => 'SSLv3', verify_hostname => 0 },
-    autocheck   => 0,
+    cookiejar => {},
+    ssl_opts  => { SSL_version => 'SSLv3', verify_hostname => 0 },
+    autocheck => 0,
 );
 
 if ( defined $debug ) {
     $mech->show_progress(1);
 }
 
-
-$mech->get( "https://$hostname" ) ;
+$mech->get("https://$hostname");
 
 # due to different firmware versions, sometimes we get a pop-up asking for
 # authentication instead of a form in the site. (this is why autocheck needs
@@ -62,60 +61,62 @@ $mech->get( "https://$hostname" ) ;
 
 # if the pop up turns up, this is then basic auth
 if ( $mech->status() == 401 ) {
+
     #$mech->credentials( "sa_nagios", "nagiosrules") ;
-    $mech->credentials( "$user", "$password") ;
-    $mech->get( "https://$hostname/upsstat.htm" ) ;
+    $mech->credentials( "$user", "$password" );
+    $mech->get("https://$hostname/upsstat.htm");
     parse_text();
 }
 
 # otherwise, just fill in the form
 else {
-    $mech->get( "https://$hostname" ) ;
+    $mech->get("https://$hostname");
+
     # login, there is just one form
     $mech->submit_form(
-        form_number     => 1,
-        fields          => { login_username => $user,
-                             login_password => $password,
+        form_number => 1,
+        fields      => {
+            login_username => $user,
+            login_password => $password,
         },
-     );
+    );
 
     parse_text();
-};
-
+}
 
 sub parse_text {
+
     # save the website text in $text. This will be a very long string
     my $text = $mech->text();
 
-    if ( defined $debug) {
+    if ( defined $debug ) {
         print "This is the content of the site after logging in: \n";
         print $text;
         print "\n";
 
-}
+    }
 
-# parse $text. If we find the text 'critical alarm.' then we report the error
-# to nagios. We are interested in the text from 'Critical Alarm(s) up to the
-# first dot followed by an empty space (there may be several critical alarms)
+   # parse $text. If we find the text 'critical alarm.' then we report the error
+   # to nagios. We are interested in the text from 'Critical Alarm(s) up to the
+   # first dot followed by an empty space (there may be several critical alarms)
 
     if ( $text =~ /.*(critical alarm.*?)\.\s.*/i ) {
         my $message = $1;
         print "WARNING: $message\n";
         exit 1;
     }
-    elsif ( $text =~ /.*(no alarms present)./i) {
+    elsif ( $text =~ /.*(no alarms present)./i ) {
         my $message = $1;
         print "OK: $message\n";
         exit 0;
     }
-    return ;
-} ## --- end sub parse_text
-
-
+    return;
+}    ## --- end sub parse_text
 
 #-------------------------------------------------------------------------------
 #  Plain Old Documentation
 #-------------------------------------------------------------------------------
+
 =head1 NAME
 
 check_ups_http - check web interface APC ups for critical alerts
