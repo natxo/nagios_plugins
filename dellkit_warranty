@@ -47,9 +47,9 @@ if ($revision) {
     exit 0;
 }
 
-pod2usage(1) if $help;
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
 
-pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host;
+pod2usage(1) unless $host;
 
 #-------------------------------------------------------------------------------
 #  process cli switches
@@ -216,11 +216,11 @@ sub _get_delltag_dmidecode {
 sub _get_tag_snmp {
     ( $host, $community ) = @_;
 
-    dbg("polling $host with community $community using SNMP to get asset tag\n"
+    dbg( "polling $host with community $community using SNMP to get asset tag\n"
     );
 
     # create snmp object
-    use Net::SNMP;
+    require Net::SNMP;
 
     my $oid_dell_tag = "1.3.6.1.4.1.674.10892.1.300.10.1.11.1";
 
@@ -264,11 +264,11 @@ sub _get_tag_esx {
     # adapted from http://www.virtuallyghetto.com/
     # http://communities.vmware.com/docs/DOC-14652
 
-    use VMware::VILib;
-    use VMware::VIRuntime;
+    require VMware::VILib;
+    require VMware::VIRuntime;
     Opts::set_option( 'server',   $host );
     Opts::set_option( 'username', "root" );
-    Opts::set_option( 'password', "afkar#62" );
+    Opts::set_option( 'password', "password" );
     Opts::parse();
     Opts::validate();
     Util::connect();
@@ -303,15 +303,36 @@ dellkit_warranty
 
 =head1 SYNOPSIS
 
-# dellkit_warranty -H [hostname] -[tcwvVh]
+dellkit_warranty -H [hostname] -[tcwvVhCE]
+
+options -E and -C are mutually exclusive (-E is for polling ESXi hosts, -C is
+for polling hosts using SNMP.
 
 =head1 DESCRIPTION
 
-Nagios plugin to check the remaining days of warranty left for Dell
-hardware.
+This is the documentation for dellkit_warranty version 1.
 
-The plugin requires the installation of the Soap::Lite module,
+dellkit_warranty is a Nagios plugin to check the remaining days of warranty left for Dell hardware.
+
+The plugin requires the installation of the SOAP::Lite module,
 available from your Perl distributor repositories or CPAN.
+
+For Linux hosts you can retrieve the Dell service tag information using
+dmidecode (you need to allow the nagios user to run dmidecode in sudo without
+a password. This assumes you run the check from NRPE, but then you need to
+allow the linux hosts access to the internet (no proxy) to poll the host
+xserv.dell.com (http).
+
+Otherwise, for Linux and Windows hosts you may retrieve the service tag using
+SNMP. This requires the installation of Open Managed Node from Dell and
+configuring the snmp service/daemon. If you already use (and you should!) the
+excellent L<check_openmange|http://folk.uio.no/trondham/software/check_openmanage.html> you have already this sorted out.
+
+For ESXi hosts you need the VMware Perl SDK. If you already use the excellent
+L<check_esx|http://www.op5.org/community/plugin-inventory/op5-projects/check-esx-plugin>
+by OP5 then you are all set. Otherwise follow the instructions
+L<here|https://kb.op5.com/display/HOWTOs/Monitoring+VMware+ESX+3.x,+ESXi,+vSphere+4+and+vCenter+Server>
+to get it all running
 
 =head1 ARGUMENTS
 
@@ -319,7 +340,8 @@ available from your Perl distributor repositories or CPAN.
 
 -t | --tag      Dell service tag number of server to monitor; if you do
 not specify one on the command line, the script will try to get it from
-dmidecode (only localhost), snmp (todo) or omreport (todo, only localhost)
+dmidecode (only localhost). If you want to poll a Dell server using SNMP, use
+the -C switch; if you want to poll a ESXi host, use the -E switch.
 
 -V | --version  prints the version of this program
 
@@ -329,8 +351,45 @@ dmidecode (only localhost), snmp (todo) or omreport (todo, only localhost)
 
 -c | --critical days before nagios gives a critical alert; default is 30
 
--h | --help | -?  print this help text
+-E | --esx      to indicate we want to poll a dell server running ESXi using
+the VMware api (requires installing the VMware Perl SDK)
+
+-C | --community  to indicate we want to poll a dell server using SNMP
+(requires the Open Managed Node software on the host and the Net::SNMP perl
+library). Right now only snmp version 1 is implemented
+
+-h | --help | -?  print the full help text
 
 =head1 AUTHOR
 
 natxo asenjo in his spare time
+
+=head1 EXAMPLES
+
+=over
+
+=item poll an ESXi host
+
+dellkit_warranty -H host -E true (any string after -E defines the $esx
+variable)
+
+=item poll localhost
+
+dellkit_warranty -H localhost
+
+=item poll Windows host using SNMP
+
+dellkit_warranty -H windowshost -C communityname
+
+=item poll localhost and get debugging info (it shows the soap conversation
+with the xserv.dell.com host)
+
+dellkit_warranty -H localhost -v
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright Natxo Asenjo
+This program is free software; you can redistribute it and/or
+modify it under the terms of the Artistic License version 2.0.
