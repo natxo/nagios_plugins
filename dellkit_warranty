@@ -1,0 +1,209 @@
+#!/usr/bin/env perl
+
+use warnings;
+use strict;
+
+use Getopt::Long;
+use Pod::Usage;
+use SOAP::Lite;
+
+# nagios error codes
+my %ERRORS = (
+    'OK'        => 0,
+    'WARNING'   => 1,
+    'CRITICAL'  => 2,
+    'UNKNOWN'   => 3,
+    'DEPENDENT' => 4,
+);
+
+# global variables
+my $warning  = 90;
+my $critical = 30;
+my $version  = 1;
+my $help     = 0;
+my $host;
+my $revision;
+my $debug;
+my $tag;
+
+# variables needed for xserv.dell.com
+my $soap_url = "http://xserv.dell.com/services/assetservice.asmx";
+my $soap_uri = "http://support.dell.com/WebServices/";
+my $guid     = "f1d49b55-a55c-44c1-baae-a244e1ae57d8";
+my $appname  = "nagios warranty check";
+
+#-------------------------------------------------------------------------------
+# cli options
+#-------------------------------------------------------------------------------
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+GetOptions(
+    'H|host=s'     => \$host,
+    't|tag=s'      => \$tag,
+    'h|help|?'     => \$help,
+    'v|verbose'    => \$debug,
+    'V|version'    => \$revision,
+    'w|warning=i'  => \$warning,
+    'c|critical=i' => \$critical,
+);
+
+# get version info if requested and exit
+if ($revision) {
+    print "Version: $version\n";
+    exit $ERRORS{OK};
+}
+
+pod2usage(1) if $help;
+
+pod2usage( -verbose => 1, -noperldoc => 1, ) unless $host;
+
+#-------------------------------------------------------------------------------
+#  process cli switches
+#-------------------------------------------------------------------------------
+
+if ( defined $debug ) {
+    SOAP::Lite->import( trace => "debug" );
+}
+
+# if no tag is given from the cli and the check is run against localhost
+# try getting it from dmidecode
+
+if ( !defined $tag and $host eq "localhost" ) {
+    dbg("Getting tag from dmidecode");
+    _get_delltag_dmidecode();
+    dbg("tag is $tag");
+}
+
+# If we cannot get a $tag either from the cli options or dmidecode or
+# snmp, then we cannot go on. End script then.
+unless ( defined $tag ) {
+    print
+"We could not find an appropriate dell tag string. Without one we cannot use this plugin.\n";
+    exit $ERRORS{UNKNOWN};
+}
+
+# create soap agent
+my $client = SOAP::Lite->new(
+    proxy => $soap_url,
+    uri   => $soap_uri,
+);
+
+# we need this, or it won't work
+$client->on_action(
+    sub {
+        "http://support.dell.com/WebServices/GetAssetInformation";
+    }
+);
+
+# poll the dell service with the requested info
+my $call = $client->call(
+    'GetAssetInformation',
+    SOAP::Data->name('guid')->value($guid),
+    SOAP::Data->name('applicationName')->value($appname),
+    SOAP::Data->name('serviceTags')->value($tag),
+);
+
+die $call->faultstring if ( $call->fault );
+
+# to see all the whole response uncomment these 2 lines
+# use Data::Dumper;
+# print Dumper $call->result;
+
+# get some answers from the soap service
+my $end_date = $call->valueof('//Asset/Entitlements/EntitlementData/EndDate');
+
+my $entitlement_type =
+  $call->valueof('//Asset/Entitlements/EntitlementData/EntitlementType');
+
+my $warranty_left =
+  $call->valueof('//Asset/Entitlements/EntitlementData/DaysLeft');
+
+if ( $debug ) {
+    print "$tag still $warranty_left days left\n";
+    print "entitlement type: \t $entitlement_type\n";
+    print "end warranty date: \t $end_date\n";
+}
+
+# subroutines
+sub dbg {
+    print STDERR "--", shift, "\n" if $debug;
+}    # ----------  end of subroutine dbg  ----------
+
+#===  FUNCTION  ================================================================
+#         NAME:  _get_delltag_dmidecode
+#      PURPOSE:  get the dell tag using dmidecode
+#   PARAMETERS:
+#      RETURNS:  dell tag string
+#  DESCRIPTION:  when run on the localhost, we can get the dell tag
+#                with dmidecode --type system
+#       THROWS:  no exceptions
+#     COMMENTS:  as this plugin will probably run as user nagios, we
+#                need to use sudo. dmidecode can only run as root
+#                To enable sudo dmidecode for the user nagios, edit the
+#                sudoers file with visudo and set something like this:
+#                nagios     ALL = NOPASSWD: /usr/sbin/dmidecode
+#     SEE ALSO:  n/a
+#===============================================================================
+sub _get_delltag_dmidecode {
+    my $dmidecode = "sudo dmidecode --type system";
+    dbg("running and parsing $dmidecode");
+    open my $outputdmidecode, '-|', $dmidecode or die "$!\n";
+    while (<$outputdmidecode>) {
+        chomp;    # dump hidden new lines please
+
+        # we need to match Serial Number: *****, we save everything
+        # after the : until a space in $1 which later becomes $tag
+        # update: now we return the lower case tag after an update of
+        # Dell's site
+        if ( $_ =~ m/^.*Serial Number: (.*)\s*$/ ) {
+            $tag = lc $1;
+        }
+    }
+
+    close $outputdmidecode;
+
+    dbg("this system\'s dell tag is $tag");
+
+    return $tag;
+}    # ----------  end of subroutine _get_delltag_dmidecode  ----------
+
+#-------------------------------------------------------------------------------
+#  Plain Old Documentation
+#-------------------------------------------------------------------------------
+
+=head1 NAME
+
+dellkit_warranty
+
+=head1 SYNOPSIS
+
+# dellkit_warranty -H [hostname] -[tcwvVh]
+
+=head1 DESCRIPTION
+
+Nagios plugin to check the remaining days of warranty left for Dell
+hardware.
+
+The plugin requires the installation of the Soap::Lite module,
+available from your Perl distributor repositories or CPAN.
+
+=head1 ARGUMENTS
+
+-H | --host     Hostname/ip address of server to monitor (required)
+
+-t | --tag      Dell service tag number of server to monitor; if you do
+not specify one on the command line, the script will try to get it from
+dmidecode (only localhost), snmp (todo) or omreport (todo, only localhost)
+
+-V | --version  prints the version of this program
+
+-v | --verbose  prints extra debugging information
+
+-w | --warning  days before nagios gives a warning; default is 90
+
+-c | --critical days before nagios gives a critical alert; default is 30
+
+-h | --help | -?  print this help text
+
+=head1 AUTHOR
+
+natxo asenjo in his spare time
