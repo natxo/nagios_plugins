@@ -7,15 +7,6 @@ use Getopt::Long;
 use Pod::Usage;
 use SOAP::Lite;
 
-# nagios error codes
-my %ERRORS = (
-    'OK'        => 0,
-    'WARNING'   => 1,
-    'CRITICAL'  => 2,
-    'UNKNOWN'   => 3,
-    'DEPENDENT' => 4,
-);
-
 # global variables
 my $warning  = 90;
 my $critical = 30;
@@ -25,6 +16,8 @@ my $host;
 my $revision;
 my $debug;
 my $tag;
+my $community;
+my $esx;
 
 # variables needed for xserv.dell.com
 my $soap_url = "http://xserv.dell.com/services/assetservice.asmx";
@@ -37,19 +30,21 @@ my $appname  = "nagios warranty check";
 #-------------------------------------------------------------------------------
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 GetOptions(
-    'H|host=s'     => \$host,
-    't|tag=s'      => \$tag,
-    'h|help|?'     => \$help,
-    'v|verbose'    => \$debug,
-    'V|version'    => \$revision,
-    'w|warning=i'  => \$warning,
-    'c|critical=i' => \$critical,
+    'H|host=s'      => \$host,
+    't|tag=s'       => \$tag,
+    'h|help|?'      => \$help,
+    'v|verbose'     => \$debug,
+    'V|version'     => \$revision,
+    'w|warning=i'   => \$warning,
+    'c|critical=i'  => \$critical,
+    'C|community=s' => \$community,
+    'E|esx=s'       => \$esx,
 );
 
 # get version info if requested and exit
 if ($revision) {
     print "Version: $version\n";
-    exit $ERRORS{OK};
+    exit 0;
 }
 
 pod2usage(1) if $help;
@@ -73,13 +68,27 @@ if ( !defined $tag and $host eq "localhost" ) {
     dbg("tag is $tag");
 }
 
+# try getting the $tag with snmp if we get a community cli switch
+if ( defined $community ) {
+    _get_tag_snmp( $host, $community );
+}
+
+# try getting the $tag using the VMware api
+if ( defined $esx ) {
+    _get_tag_esx();
+}
+
 # If we cannot get a $tag either from the cli options or dmidecode or
 # snmp, then we cannot go on. End script then.
 unless ( defined $tag ) {
     print
 "We could not find an appropriate dell tag string. Without one we cannot use this plugin.\n";
-    exit $ERRORS{UNKNOWN};
+    exit 3;
 }
+
+#-------------------------------------------------------------------------------
+# main
+#-------------------------------------------------------------------------------
 
 # create soap agent
 my $client = SOAP::Lite->new(
@@ -108,16 +117,16 @@ die $call->faultstring if ( $call->fault );
 # use Data::Dumper;
 # print Dumper $call->result;
 
-# get some answers from the soap service
+# get some answers from the soap service:
 
-# until when is our warranty valid
+# until when is our warranty valid?
 my $end_date = $call->valueof('//Asset/Entitlements/EntitlementData/EndDate');
 
-# is our warranty active now
+# is our warranty active now?
 my $entitlement_type =
   $call->valueof('//Asset/Entitlements/EntitlementData/EntitlementType');
 
-# how many days left do we have
+# how many days left do we have?
 my $warranty_left =
   $call->valueof('//Asset/Entitlements/EntitlementData/DaysLeft');
 
@@ -148,7 +157,10 @@ else {
     exit 3;
 }
 
+#-------------------------------------------------------------------------------
 # subroutines
+#-------------------------------------------------------------------------------
+
 sub dbg {
     print STDERR "--", shift, "\n" if $debug;
 }    # ----------  end of subroutine dbg  ----------
@@ -190,6 +202,96 @@ sub _get_delltag_dmidecode {
 
     return $tag;
 }    # ----------  end of subroutine _get_delltag_dmidecode  ----------
+
+#===  FUNCTION  ================================================================
+#         NAME:  _get_tag_snmp
+#      PURPOSE:  get the dell tag using snmp
+#   PARAMETERS:  $host, $community
+#      RETURNS:  dell tag string
+#  DESCRIPTION:  get the dell tag using snmp
+#       THROWS:  no exceptions
+#     COMMENTS:  we use snmp version 1
+#     SEE ALSO:  n/a
+#===============================================================================
+sub _get_tag_snmp {
+    ( $host, $community ) = @_;
+
+    dbg("polling $host with community $community using SNMP to get asset tag\n"
+    );
+
+    # create snmp object
+    use Net::SNMP;
+
+    my $oid_dell_tag = "1.3.6.1.4.1.674.10892.1.300.10.1.11.1";
+
+    # start snmp session
+    my ( $session, $error ) = Net::SNMP->session(
+        -hostname  => $host,
+        -community => $community,
+        -version   => 1,
+
+        #-debug     => 255,
+    );
+
+    # if the snmp session fails, exit check with error message
+    if ( !defined $session ) {
+        printf "ERROR: %s.\n", $error;
+        exit 1;
+    }
+
+    # get the value in our wanted oid
+    my $result = $session->get_request( -varbindlist => [$oid_dell_tag], );
+
+    # if we cannot get a result, exit check with error message
+    if ( !defined $result ) {
+        printf "ERROR: %s.\n", $error;
+        $session->close();
+        exit 1;
+    }
+
+    # close snmp session, after this we parse the results we get
+    $session->close();
+
+    # uncomment this to see the snmp status
+    $tag = $result->{$oid_dell_tag};
+    dbg("got service tag [$tag] from snmp\n");
+
+    return $tag;
+}    # ----------  end of subroutine _get_tag_snmp  ----------
+
+sub _get_tag_esx {
+
+    # adapted from http://www.virtuallyghetto.com/
+    # http://communities.vmware.com/docs/DOC-14652
+
+    use VMware::VILib;
+    use VMware::VIRuntime;
+    Opts::set_option( 'server',   $host );
+    Opts::set_option( 'username', "root" );
+    Opts::set_option( 'password', "afkar#62" );
+    Opts::parse();
+    Opts::validate();
+    Util::connect();
+
+    my $host_view = Vim::find_entity_view( view_type => 'HostSystem' );
+    my $additional_vendor_info = "";
+
+    if ( $host_view->summary->hardware->otherIdentifyingInfo ) {
+        my $add_info = $host_view->summary->hardware->otherIdentifyingInfo;
+        foreach (@$add_info) {
+            if ( $_->identifierType->key eq "ServiceTag" ) {
+                $tag = $_->identifierValue;
+                dbg("tag from ESX API: [$tag]\n");
+            }
+        }
+    }
+    else {
+        dbg(
+"There is no Service Tag information configured by your Vendor/OEM\n"
+        );
+    }
+    return $tag;
+}    # ----------  end of subroutine _get_tag_esx  ----------
 
 #-------------------------------------------------------------------------------
 #  Plain Old Documentation
