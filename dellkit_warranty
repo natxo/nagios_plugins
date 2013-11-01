@@ -109,18 +109,43 @@ die $call->faultstring if ( $call->fault );
 # print Dumper $call->result;
 
 # get some answers from the soap service
+
+# until when is our warranty valid
 my $end_date = $call->valueof('//Asset/Entitlements/EntitlementData/EndDate');
 
+# is our warranty active now
 my $entitlement_type =
   $call->valueof('//Asset/Entitlements/EntitlementData/EntitlementType');
 
+# how many days left do we have
 my $warranty_left =
   $call->valueof('//Asset/Entitlements/EntitlementData/DaysLeft');
 
-if ( $debug ) {
+if ($debug) {
     print "$tag still $warranty_left days left\n";
     print "entitlement type: \t $entitlement_type\n";
     print "end warranty date: \t $end_date\n";
+}
+
+# nagios logic/end of script
+if ( $warranty_left > $warning ) {
+    print
+"OK: we have $warranty_left days. Warranty ends $end_date|days:$warranty_left\n";
+    exit 0;
+}
+elsif ( $warranty_left <= $warning && $warranty_left >= $critical ) {
+    print
+"WARNING: we have $warranty_left days. Warranty ends $end_date|days:$warranty_left\n";
+    exit 1;
+}
+elsif ( $warranty_left < $critical ) {
+    print
+"CRITICAL: we have $warranty_left days. Warranty ends $end_date|days:$warranty_left\n";
+    exit 2;
+}
+else {
+    print "UNKNOWN: run $0 with --verbose flag to see what has gone wrong\n";
+    exit 3;
 }
 
 # subroutines
