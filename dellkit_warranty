@@ -19,8 +19,8 @@ my $tag;
 my $community;
 my $esx;
 my $pwdfile;
-my $esx_username;
-my $esx_password;
+my $username;
+my $password;
 
 # variables needed for xserv.dell.com
 my $soap_url = "http://xserv.dell.com/services/assetservice.asmx";
@@ -86,7 +86,7 @@ if ( !defined $pwdfile and defined $esx ) {
 if ( defined $esx and defined $pwdfile ) {
     dbg("ok, both switches for ESXi and password file have values");
     _get_pwdfile_mod($pwdfile);
-    _process_password_file();
+    _process_password_file($pwdfile);
     _get_tag_esx();
 }
 
@@ -286,12 +286,14 @@ sub _get_tag_esx {
 
     # adapted from http://www.virtuallyghetto.com/
     # http://communities.vmware.com/docs/DOC-14652
+    dbg("got esx usernme: $username");
+    dbg("got esx password: $password");
 
     require VMware::VILib;
     require VMware::VIRuntime;
     Opts::set_option( 'server',   $host );
-    Opts::set_option( 'username', $esx_username );
-    Opts::set_option( 'password', $esx_password );
+    Opts::set_option( 'username', $username );
+    Opts::set_option( 'password', $password );
     Opts::parse();
     Opts::validate();
     Util::connect();
@@ -320,24 +322,31 @@ sub _get_tag_esx {
 #         NAME: _process_password_file
 #      PURPOSE: import the cli switch $pwdfile
 #   PARAMETERS: $pwdfile
-#      RETURNS: $esx_username and $esx_password
+#      RETURNS: $username and $password
 #  DESCRIPTION: see purpose
 #       THROWS: no exceptions
 #     COMMENTS: none
 #     SEE ALSO: n/a
 #===============================================================================
 sub _process_password_file {
-    _get_pwdfile_mod($pwdfile);
-
-    my $username;
-    my $password;
+    ($pwdfile) = @_;
 
     # load the file
-    eval {
-        require $pwdfile;
-        $esx_username = $username;
-        $esx_password = $password;
-    };
+    require Config::Tiny;
+    dbg("password file is $pwdfile");
+
+    # create the config
+    my $config = Config::Tiny->new;
+
+    # open it
+    $config = Config::Tiny->read($pwdfile);
+
+    # get properties;
+    $username = $config->{_}->{username};
+    $password = $config->{_}->{password};
+    dbg("esx username found in config file $pwdfile: $username");
+    dbg("esx password found in config file $pwdfile: $password");
+    return ( $username, $password );
 }
 
 #===  FUNCTION  ================================================================
@@ -393,7 +402,7 @@ This is the documentation for dellkit_warranty version 1.
 dellkit_warranty is a Nagios plugin to check the remaining days of warranty left for Dell hardware.
 
 The plugin requires the installation of the SOAP::Lite module,
-available from your Perl distributor repositories or CPAN.
+available from your Perl distributor repositories or CPAN. 
 
 For Linux hosts you can retrieve the Dell service tag information using
 dmidecode (you need to allow the nagios user to run dmidecode in sudo without
@@ -406,17 +415,16 @@ SNMP. This requires the installation of Open Managed Node from Dell and
 configuring the snmp service/daemon. If you already use (and you should!) the
 excellent L<check_openmange|http://folk.uio.no/trondham/software/check_openmanage.html> you have already this sorted out.
 
-For ESXi hosts you need the VMware Perl SDK. If you already use the excellent
-L<check_esx|http://goo.gl/5GS0X> by OP5 then you are all set; follow the
-prerequisites instructions here L<http://goo.gl/Gjx9OV> if you do not have it.
+For ESXi hosts you need the Config::Tiny module and the VMware Perl SDK. If
+you already use the excellent L<check_esx|http://goo.gl/5GS0X> by OP5 then you
+are all set; follow the prerequisites instructions here L<http://goo.gl/Gjx9OV>
+if you do not have it.
 
 You also need to create a password file to not pass the ESX username/password
-on the command line. This password file is just regular perl code and has this
-format:
+on the command line. This password file is a simple rhs = lhs ini format file
 
-    #!/usr/bin/env perl
-    $username = "your_esx_username" ;
-    $password = "yourpassword" ;
+    username = your_esx_username
+    password = yourpassword
 
 That's it. After that, change the file's permissions to be 600, that is, only
 read/write, for the nagios user.
