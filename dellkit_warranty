@@ -10,7 +10,7 @@ use SOAP::Lite;
 # global variables
 my $warning  = 90;
 my $critical = 30;
-my $version  = 1;
+my $version  = 2;
 my $help     = 0;
 my $host;
 my $revision;
