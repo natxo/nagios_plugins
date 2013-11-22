@@ -19,8 +19,6 @@ my $tag;
 my $community;
 my $esx;
 my $pwdfile;
-my $username;
-my $password;
 
 # variables needed for xserv.dell.com
 my $soap_url = "http://xserv.dell.com/services/assetservice.asmx";
@@ -85,9 +83,15 @@ if ( !defined $pwdfile and defined $esx ) {
 }
 if ( defined $esx and defined $pwdfile ) {
     dbg("ok, both switches for ESXi and password file have values");
+
+    # is pwdfile 0600?
     _get_pwdfile_mod($pwdfile);
-    _process_password_file($pwdfile);
-    _get_tag_esx();
+
+    # retrieve credentials in $pwdfile
+    my ( $username, $password ) = _process_password_file($pwdfile);
+
+    # get dell tag using the VMware api finally
+    _get_tag_esx( $username, $password );
 }
 
 # If we cannot get a $tag either from the cli options or dmidecode or
@@ -283,6 +287,7 @@ sub _get_tag_snmp {
 #     SEE ALSO: n/a
 #===============================================================================
 sub _get_tag_esx {
+    my ( $username, $password ) = @_;
 
     # adapted from http://www.virtuallyghetto.com/
     # http://communities.vmware.com/docs/DOC-14652
@@ -342,8 +347,8 @@ sub _process_password_file {
     $config = Config::Tiny->read($pwdfile);
 
     # get properties;
-    $username = $config->{_}->{username};
-    $password = $config->{_}->{password};
+    my $username = $config->{_}->{username};
+    my $password = $config->{_}->{password};
     dbg("esx username found in config file $pwdfile: $username");
     dbg("esx password found in config file $pwdfile: $password");
     return ( $username, $password );
@@ -375,7 +380,7 @@ sub _get_pwdfile_mod {
     }
     else {
         print "o o, the file's mode is $mode, it really shold be 0600\n";
-        print "please chmod $pwdfile 0600 to fix it\n";
+        print "please chmod 0600 $pwdfile  to fix it\n";
         exit 1;
     }
 }
