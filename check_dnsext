@@ -94,7 +94,7 @@ if ($query) {
     }
 }
 else {
-    warn "CRITICAL: dns $type RR query for $host returns ",
+    print "CRITICAL: dns $type RR query for $host returns ",
         $resolver->errorstring, ", we wanted @exp_address\n";
     exit 2;
 }
