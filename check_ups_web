@@ -152,10 +152,6 @@ interface and parses its content looking for alarms.
 =head1 REQUIREMENTS
 This scripts requires the Perl WWW::Mechanize and Crypt::SSLeay modules.
 
-=head1 SEEALSO
-In the code, section 'Global Variables', I have hardcoded the user/password
-combination to login the web interface.
-
 =head1 AUTHOR
 José Asenjo
 
