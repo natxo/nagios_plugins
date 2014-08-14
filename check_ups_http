@@ -20,8 +20,8 @@ use Pod::Usage;
 my $hostname = undef;                   # this has to be a cli argument
 my $help     = undef;
 my $debug    = undef;
-my $user     = undef || "supervisor";
-my $password = undef || "up6!z.nl";
+my $user     = undef;
+my $password = undef;
 
 #-------------------------------------------------------------------------------
 # process cli arguments
@@ -62,7 +62,6 @@ $mech->get("https://$hostname");
 # if the pop up turns up, this is then basic auth
 if ( $mech->status() == 401 ) {
 
-    #$mech->credentials( "sa_nagios", "nagiosrules") ;
     $mech->credentials( "$user", "$password" );
     $mech->get("https://$hostname/upsstat.htm");
     parse_text();
