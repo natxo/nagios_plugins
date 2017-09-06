@@ -1,0 +1,37 @@
+#!/usr/bin/env perl 
+
+use strict;
+use warnings;
+
+use IPC::Cmd qw[can_run run];
+use Data::Dumper;
+
+my $cmd = "systemctl --failed --no-legend";
+
+my $path = can_run("systemctl");
+
+#if ( !defined $path ) {
+if ( not defined $path ) {
+    print
+      "UNKNOWN: could not find systemctl executable; is this a systemd enabled system?\n";
+      exit 3;
+
+}
+
+### in list context ###
+my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf ) =
+  run( command => $cmd, verbose => 0 );
+
+if ($success) {
+    if ( scalar @$full_buf == 0 ) {
+        print "OK: all systemd units in their desired state\n";
+        exit 0;
+    }
+    else {
+        print "WARNING: ";
+        for (@$full_buf) {
+            print "$_";
+        }
+        exit 1;
+    }
+}

@@ -1,0 +1,17 @@
+#!/usr/bin/env perl 
+
+use strict;
+use warnings;
+
+my $cmd = "/usr/bin/timedatectl";
+
+
+my @output = qx{ $cmd } ;
+
+for my $line (@output) {
+    chomp $line;
+    next unless $line =~ m/(Network|NTP)/ ;
+    my ( $key, $value ) = split( ": ", $line );
+    print "[$key]\t[$value]\n";
+    
+}
