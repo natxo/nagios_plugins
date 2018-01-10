@@ -1,0 +1,68 @@
+#!/usr/bin/env perl 
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+Getopt::Long::Configure( "no_ignore_case", "bundling" );
+use Pod::Usage;
+
+my $cmd = "systemctl --failed --no-legend";
+
+GetOptions(
+    'h|?|help'      => \my $help,
+    'b|blacklist=s' => \my $blacklist,
+    'd|debug'       => \my $debug,
+    'c|checknow'    => \my $checknow
+);
+
+pod2usage( -verbose => 2, -noperldoc => 1, ) if $help;
+pod2usage( -verbose => 0, -noperldoc => 1, ) unless $checknow;
+
+# output of $cmd is in this array
+my @failed_svcs = `$cmd`;
+
+if ( scalar @failed_svcs == 0 ) {
+    print "OK: no systemd failed svcs\n";
+    exit 0;
+}
+else {
+    my $counter = 0;
+    for my $svc (@failed_svcs) {
+        chomp $svc;
+        my ($svc_name) = $svc =~ m/^(.*).service.*$/;
+        print "Service name: $svc_name\n" if $debug;
+        print "Service detail: $svc\n"    if $debug;
+        if ( defined $blacklist ) {
+            print "Blacklist: $blacklist\n" if $debug;
+            next if $svc_name =~ m/$blacklist/i;
+        }
+        else {
+            print "WARNING: $svc\n";
+            $counter++;
+        }
+    }
+    if ( $counter == 0 ) {
+        print "OK: no (blacklisted) systemd failed svcs\n";
+        exit 0;
+    }
+    else {
+        exit 1;
+    }
+}
+
+=head1 SYNOPSIS
+
+systemd_failed --checknow (--blacklist "this|that")
+
+=head1 ARGUMENTS
+
+-c | --checknow run the check, no value necessary
+
+-h | --help     this text
+
+-b | --blacklist regex to exclude failed services from generating alerts
+                 example: --blacklist "this|that", 
+                 case insensitive
+
+-d | --debug    output some debugging info, no value necessary
