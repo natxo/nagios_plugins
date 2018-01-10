@@ -4,14 +4,26 @@ use strict;
 use warnings;
 
 my $cmd = "/usr/bin/timedatectl";
+my %placeholder;
 
-
-my @output = qx{ $cmd } ;
+my @output = qx{ $cmd };
 
 for my $line (@output) {
     chomp $line;
-    next unless $line =~ m/(Network|NTP)/ ;
+    next unless $line =~ m/(Network|NTP|synchronized)/;
     my ( $key, $value ) = split( ": ", $line );
-    print "[$key]\t[$value]\n";
     
+    # fill hash
+    $placeholder{$key} = $value;
+}
+
+while ( my ( $key, $value ) = each %placeholder ) {
+    if ( $value eq "yes" ) {
+        print "OK: systemd ntp client synchronized\n";
+        exit 0;
+    }
+    elsif ( $value eq "no" ) {
+        print "WARNING: systemd ntp client not synchronized, $key\n";
+        exit 1;
+    }
 }
