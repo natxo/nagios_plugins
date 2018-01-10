@@ -7,6 +7,12 @@ use Getopt::Long;
 Getopt::Long::Configure( "no_ignore_case", "bundling" );
 use Pod::Usage;
 
+# exit fast if not a systemd system
+if ( ! -d "/run/systemd" ) {
+    print "UNKNOWN: is this a systemd system?\n";
+    exit 3;
+}
+
 my $cmd = "systemctl --failed --no-legend";
 
 GetOptions(
